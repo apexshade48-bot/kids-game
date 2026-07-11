@@ -1,0 +1,11 @@
+.env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+kids_word_game.db
+*.db-journal
+.DS_Store
+Thumbs.db
+client-package/

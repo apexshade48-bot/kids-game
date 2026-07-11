@@ -1,0 +1,15 @@
+services:
+  wordstars:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - wordstars_data:/data
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-this-before-going-live}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-Apex}
+      BEHIND_PROXY: "0"
+    restart: unless-stopped
+
+volumes:
+  wordstars_data:

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Login{% endblock %}
+{% block body_class %}page-login{% endblock %}
+
+{% block content %}
+<div class="card auth-card">
+  <h1 class="big-title">⭐ Word Stars</h1>
+  <p class="subtitle">Learn words. Get stars. Have fun!</p>
+
+  <div class="tabs">
+    <a href="{{ url_for('login') }}" class="tab {% if tab == 'login' %}active{% endif %}">Log in</a>
+    <a href="{{ url_for('signup') }}" class="tab {% if tab == 'signup' %}active{% endif %}">Sign up</a>
+  </div>
+
+  {% if tab == 'signup' %}
+  <form method="post" action="{{ url_for('signup') }}" class="auth-form">
+    <label>
+      Your name
+      <input type="text" name="name" value="{{ name or '' }}" maxlength="32" required autocomplete="username" placeholder="e.g. Mia" />
+    </label>
+    <label>
+      Secret password
+      <input type="password" name="password" minlength="3" required autocomplete="new-password" placeholder="3+ letters or numbers" />
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Create account ✨</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('login') }}" class="auth-form">
+    <label>
+      Your name
+      <input type="text" name="name" value="{{ name or '' }}" maxlength="32" required autocomplete="username" placeholder="e.g. Mia" />
+    </label>
+    <label>
+      Secret password
+      <input type="password" name="password" minlength="3" required autocomplete="current-password" placeholder="Your secret" />
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Let’s play! 🚀</button>
+  </form>
+  {% endif %}
+
+  <p class="hint-note">💡 Voice works best in Chrome or Edge. Ask a grown-up for the mic.</p>
+
+  <div class="device-help card">
+    <h2>📱 Tablet or phone?</h2>
+    <p>Do <strong>not</strong> copy files — open the game in your browser on the same Wi‑Fi.</p>
+    {% if device_urls %}
+    <p class="device-link-label">Open on your device:</p>
+    {% for url in device_urls %}
+    <a href="{{ url }}" class="device-url-inline">{{ url }}</a>
+    {% endfor %}
+    {% endif %}
+    <a href="{{ url_for('devices_help') }}" class="btn btn-ghost btn-block device-help-btn">How to connect any device</a>
+  </div>
+</div>
+{% endblock %}

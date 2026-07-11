@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Leaderboard{% endblock %}
+{% block body_class %}page-leaderboard{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">🏆 Leaderboard</h1>
+  <p class="subtitle">Who has the most stars?</p>
+</section>
+
+<div class="tabs mode-tabs">
+  <a href="{{ url_for('leaderboard', mode='easy') }}" class="tab {% if mode == 'easy' %}active{% endif %}">🟢 Easy</a>
+  <a href="{{ url_for('leaderboard', mode='normal') }}" class="tab {% if mode == 'normal' %}active{% endif %}">🟡 Normal</a>
+  <a href="{{ url_for('leaderboard', mode='hard') }}" class="tab {% if mode == 'hard' %}active{% endif %}">🔴 Hard</a>
+  <a href="{{ url_for('leaderboard', mode='top') }}" class="tab {% if mode == 'top' %}active{% endif %}">💎 Top</a>
+</div>
+
+<section class="board-list">
+  {% if board %}
+    {% for row in board %}
+    <div class="board-row {% if row.user_id == current_user_id %}is-me{% endif %}">
+      <span class="rank">
+        {% if row.rank == 1 %}🥇
+        {% elif row.rank == 2 %}🥈
+        {% elif row.rank == 3 %}🥉
+        {% else %}{{ row.rank }}{% endif %}
+      </span>
+      <span class="board-name">
+        {{ row.name }}
+        {% if row.user_id == current_user_id %}<em>you</em>{% endif %}
+      </span>
+      <span class="board-pts">⭐ {{ row.points }}</span>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-board card">
+      <p>No scores yet for {{ modes[mode].label }}.</p>
+      <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Be first! 🚀</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
