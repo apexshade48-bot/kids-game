@@ -9,7 +9,10 @@
   data-points="{{ points_per_word }}"
   data-words='{{ words | tojson }}'
   data-score-url="{{ url_for('api_score') }}"
+  data-hint-url="{{ url_for('api_hint') }}"
+  data-hint-cost="{{ hint_cost if hint_cost is defined else 5 }}"
   data-home-url="{{ url_for('home') }}"
+  data-speak-focus="{{ '1' if speak_focus else '0' }}"
 >
   <div class="play-header">
     <a href="{{ url_for('home') }}" class="btn btn-small btn-ghost">← Home</a>
@@ -21,10 +24,16 @@
   </div>
 
   <section id="play-panel" class="play-panel">
+    {% if speak_focus %}
+    <p class="hint-note speak-focus-note">
+      🗣️ <strong>Spoken English practice</strong> — use the mic and say the full phrase out loud.
+      {% if mode_blurb %}<br />{{ mode_blurb }}{% endif %}
+    </p>
+    {% endif %}
     <div class="word-stage">
       <div id="word-hint" class="word-hint">✨</div>
-      <div id="target-word" class="target-word">—</div>
-      <p class="coach">Say it or type it!</p>
+      <div id="target-word" class="target-word{% if speak_focus %} target-phrase{% endif %}">—</div>
+      <p class="coach">{% if speak_focus %}🎤 Press Say it — speak clearly{% else %}Say it (mic) or type it{% endif %}</p>
     </div>
 
     <div class="answer-row">
@@ -35,14 +44,15 @@
           id="mobile-input"
           class="mobile-input"
           autocomplete="off"
-          autocapitalize="characters"
+          autocapitalize="off"
           autocorrect="off"
+          autocomplete="off"
           spellcheck="false"
           enterkeyhint="go"
-          inputmode="text"
-          maxlength="12"
+          inputmode="{% if speak_focus %}text{% else %}text{% endif %}"
+          maxlength="{% if speak_focus %}48{% else %}12{% endif %}"
           aria-label="Type your answer"
-          placeholder="Tap to type"
+          placeholder="{% if speak_focus %}Type phrase — use Space between words{% else %}Tap to type{% endif %}"
         />
       </label>
       <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear">⌫</button>
@@ -51,6 +61,9 @@
     <div class="action-row">
       <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word">
         🎤 Say it
+      </button>
+      <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter">
+        💡 Hint
       </button>
       <button type="button" id="btn-check" class="btn btn-primary">
         ✓ Check
@@ -65,12 +78,13 @@
   <section id="done-panel" class="done-panel hidden">
     <div class="card done-card">
       <div class="done-emoji">🎉</div>
-      <h2>You did it!</h2>
+      <h2>Round complete</h2>
       <p id="done-summary" class="subtitle"></p>
       <div class="done-actions">
         <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Play again</a>
+        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-ghost">Quiz</a>
         <a href="{{ url_for('home') }}" class="btn btn-ghost">Home</a>
-        <a href="{{ url_for('leaderboard', mode=mode) }}" class="btn btn-ghost">🏆 Board</a>
+        <a href="{{ url_for('leaderboard', mode=mode) }}" class="btn btn-ghost">Leaderboard</a>
       </div>
     </div>
   </section>
@@ -78,5 +92,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
 <script src="{{ url_for('static', filename='js/game.js') }}?v={{ app_version }}"></script>
 {% endblock %}

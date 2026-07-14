@@ -5,38 +5,65 @@
 {% block content %}
 <section class="hero">
   <h1 class="big-title">🏆 Leaderboard</h1>
-  <p class="subtitle">Who has the most stars?</p>
+  <p class="subtitle">
+    {% if board_kind == 'coins' %}
+    Who has the most coins?
+    {% else %}
+    Who has the most stars?
+    {% endif %}
+  </p>
 </section>
 
 <div class="tabs mode-tabs">
+  <a href="{{ url_for('leaderboard', mode='coins') }}" class="tab {% if mode == 'coins' %}active{% endif %}">🪙 Coins</a>
   <a href="{{ url_for('leaderboard', mode='easy') }}" class="tab {% if mode == 'easy' %}active{% endif %}">🟢 Easy</a>
   <a href="{{ url_for('leaderboard', mode='normal') }}" class="tab {% if mode == 'normal' %}active{% endif %}">🟡 Normal</a>
   <a href="{{ url_for('leaderboard', mode='hard') }}" class="tab {% if mode == 'hard' %}active{% endif %}">🔴 Hard</a>
   <a href="{{ url_for('leaderboard', mode='top') }}" class="tab {% if mode == 'top' %}active{% endif %}">💎 Top</a>
+  <a href="{{ url_for('leaderboard', mode='impossible') }}" class="tab {% if mode == 'impossible' %}active{% endif %}">🔥 Impossible</a>
 </div>
 
-<section class="board-list">
-  {% if board %}
-    {% for row in board %}
-    <div class="board-row {% if row.user_id == current_user_id %}is-me{% endif %}">
-      <span class="rank">
-        {% if row.rank == 1 %}🥇
-        {% elif row.rank == 2 %}🥈
-        {% elif row.rank == 3 %}🥉
-        {% else %}{{ row.rank }}{% endif %}
-      </span>
-      <span class="board-name">
-        {{ row.name }}
-        {% if row.user_id == current_user_id %}<em>you</em>{% endif %}
-      </span>
-      <span class="board-pts">⭐ {{ row.points }}</span>
-    </div>
-    {% endfor %}
+<section class="card section-card">
+  {% if board_kind == 'coins' %}
+  <h2>🪙 Richest players</h2>
+  <p class="section-desc">Top coin balances on this game.</p>
   {% else %}
-    <div class="empty-board card">
-      <p>No scores yet for {{ modes[mode].label }}.</p>
-      <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Be first! 🚀</a>
-    </div>
+  <h2>{{ modes[mode].label }} rankings</h2>
+  <p class="section-desc">Top star scores for this mode.</p>
   {% endif %}
+
+  <div class="board-list">
+    {% if board %}
+      {% for row in board %}
+      <div class="board-row {% if row.user_id == current_user_id %}is-me{% endif %}">
+        <span class="rank">
+          {% if row.rank == 1 %}🥇
+          {% elif row.rank == 2 %}🥈
+          {% elif row.rank == 3 %}🥉
+          {% else %}{{ row.rank }}{% endif %}
+        </span>
+        <span class="board-name">
+          {{ row.name }}
+          {% if row.user_id == current_user_id %}<em>you</em>{% endif %}
+        </span>
+        {% if board_kind == 'coins' %}
+        <span class="board-pts board-coins">🪙 {{ row.coins }}</span>
+        {% else %}
+        <span class="board-pts">⭐ {{ row.points }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-board">
+        {% if board_kind == 'coins' %}
+        <p>No coins earned yet.</p>
+        <a href="{{ url_for('home') }}" class="btn btn-primary">Play &amp; earn</a>
+        {% else %}
+        <p>No scores yet for {{ modes[mode].label }}.</p>
+        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Be first</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
 </section>
 {% endblock %}

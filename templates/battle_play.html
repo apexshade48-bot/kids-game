@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Battle{% endblock %}
+{% block body_class %}page-battle-play{% endblock %}
+
+{% block content %}
+<div
+  id="battle-root"
+  data-p1="{{ battle.p1_name }}"
+  data-p2="{{ battle.p2_name }}"
+  data-turn="{{ battle.turn }}"
+  data-index="{{ battle.index }}"
+  data-total="{{ battle.words|length }}"
+  data-p1-score="{{ battle.p1_score }}"
+  data-p2-score="{{ battle.p2_score }}"
+  data-done="{{ '1' if battle.done else '0' }}"
+  data-winner="{{ battle.winner or '' }}"
+  data-words='{{ battle.words | tojson }}'
+  data-answer-url="{{ url_for('api_battle_answer') }}"
+  data-cancel-url="{{ url_for('api_battle_cancel') }}"
+  data-home-url="{{ url_for('home') }}"
+  data-win-coins="{{ win_coins }}"
+>
+  <div class="play-header">
+    <a href="{{ url_for('battle_setup') }}" class="btn btn-small btn-ghost" id="btn-battle-quit">← Quit</a>
+    <div class="play-meta">
+      <span class="badge">⚔️ Battle</span>
+      <span id="battle-progress" class="badge badge-soft">{{ battle.index + 1 }} / {{ battle.words|length }}</span>
+    </div>
+  </div>
+
+  <div class="battle-vs">
+    <div id="card-p1" class="battle-player-card {% if battle.turn == 1 and not battle.done %}is-turn{% endif %}">
+      <div class="bp-name">{{ battle.p1_name }}</div>
+      <div class="bp-score" id="score-p1">{{ battle.p1_score }}</div>
+    </div>
+    <div class="battle-vs-mid">VS</div>
+    <div id="card-p2" class="battle-player-card {% if battle.turn == 2 and not battle.done %}is-turn{% endif %}">
+      <div class="bp-name">{{ battle.p2_name }}</div>
+      <div class="bp-score" id="score-p2">{{ battle.p2_score }}</div>
+    </div>
+  </div>
+
+  <section id="battle-play-panel" class="{% if battle.done %}hidden{% endif %}">
+    <p id="turn-banner" class="battle-turn-banner">
+      {% if battle.turn == 1 %}{{ battle.p1_name }}{% else %}{{ battle.p2_name }}{% endif %}'s turn!
+    </p>
+
+    <div class="word-stage">
+      <div id="battle-hint" class="word-hint">✨</div>
+      <div id="battle-word" class="target-word">—</div>
+      <p class="coach">Type the word, then Check</p>
+    </div>
+
+    <div class="answer-row">
+      <label class="typed-wrap" for="battle-input">
+        <input
+          type="text"
+          id="battle-input"
+          class="mobile-input"
+          autocomplete="off"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          maxlength="16"
+          placeholder="Type here"
+          aria-label="Type your answer"
+        />
+      </label>
+      <button type="button" id="btn-battle-clear" class="btn btn-small btn-clear">⌫</button>
+    </div>
+    <div class="action-row">
+      <button type="button" id="btn-battle-check" class="btn btn-primary btn-block">✓ Check</button>
+    </div>
+    <div id="battle-keyboard" class="keyboard" aria-label="Letter keyboard"></div>
+    <p id="battle-feedback" class="feedback" aria-live="assertive"></p>
+  </section>
+
+  <section id="battle-done" class="done-panel {% if not battle.done %}hidden{% endif %}">
+    <div class="card done-card battle-done">
+      <div class="done-emoji">🏆</div>
+      <h2 id="battle-done-title">Battle over!</h2>
+      <p id="battle-done-summary" class="subtitle"></p>
+      <div class="done-actions">
+        <a href="{{ url_for('battle_setup') }}" class="btn btn-primary">Rematch</a>
+        <a href="{{ url_for('home') }}" class="btn btn-ghost">Home</a>
+        <a href="{{ url_for('leaderboard', mode='coins') }}" class="btn btn-ghost">🪙 Coins board</a>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/battle.js') }}?v={{ app_version }}"></script>
+{% endblock %}

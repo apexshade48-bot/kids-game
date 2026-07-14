@@ -4,59 +4,145 @@
 
 {% block content %}
 <section class="hero">
-  <h1 class="big-title">Hi, {{ name }}! 👋</h1>
-  <p class="subtitle">Pick a mode and say or type the words.</p>
+  <h1 class="big-title">Hi, {{ name }}</h1>
+  <p class="subtitle">Spell, quiz, pics, battle a friend, or lucky spin. Earn coins!</p>
 </section>
 
-<section class="coin-banner">
-  <div class="coin-chip">🪙 <span id="coin-balance">{{ wallet.coins }}</span> coins</div>
-  <p class="coin-hint">Earn coins by playing — unlock new levels!</p>
-</section>
-
-<section class="scores-row">
-  {% for mode_key in mode_order %}
-  <div class="score-chip {{ mode_key }}">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }} {{ scores[mode_key] }}</div>
-  {% endfor %}
-</section>
-
-<section class="mode-grid">
-  {% for mode_key in mode_order %}
-  {% set cfg = modes[mode_key] %}
-  {% set is_unlocked = wallet.unlocked[mode_key] %}
-  {% set cost = unlock_costs.get(mode_key) %}
-
-  {% if is_unlocked %}
-  <a href="{{ url_for('play', mode=mode_key) }}" class="mode-card mode-{{ mode_key }}">
-    <span class="mode-emoji">{{ cfg.emoji }}</span>
-    <h2>{{ cfg.label }}</h2>
-    <p><strong>{{ cfg.word_count }}</strong> words · each is <strong>{% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %}</strong> letters</p>
-    {% if mode_key == 'easy' %}
-    <span class="mode-badge mode-badge-free">Free</span>
-    {% endif %}
-    <span class="mode-pts">+{{ cfg.points }} each</span>
-  </a>
-  {% else %}
-  <div class="mode-card mode-{{ mode_key }} locked" data-mode="{{ mode_key }}" data-cost="{{ cost }}">
-    <span class="mode-lock">🔒</span>
-    <span class="mode-emoji">{{ cfg.emoji }}</span>
-    <h2>{{ cfg.label }}</h2>
-    <p><strong>{{ cfg.word_count }}</strong> words · each is <strong>{% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %}</strong> letters</p>
-    <span class="mode-pts">+{{ cfg.points }} each</span>
-    <button
-      type="button"
-      class="btn btn-unlock"
-      data-mode="{{ mode_key }}"
-      data-cost="{{ cost }}"
-      {% if wallet.coins < cost %}disabled{% endif %}
-    >
-      Unlock for 🪙 {{ cost }}
-    </button>
-    {% if wallet.coins < cost %}
-    <p class="unlock-need">Need {{ cost - wallet.coins }} more coins</p>
-    {% endif %}
+<section class="home-stats" aria-label="Your stats">
+  <div class="stat-card stat-coins">
+    <span class="stat-num" id="coin-balance">{{ wallet.coins }}</span>
+    <span class="stat-label">Coins</span>
   </div>
-  {% endif %}
+  <div class="stat-card">
+    <span class="stat-num">🔥 {{ progress.streak }}</span>
+    <span class="stat-label">Day streak</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ progress.today.correct }}</span>
+    <span class="stat-label">Today correct</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ progress.week_correct }}</span>
+    <span class="stat-label">Week stars</span>
+  </div>
+  {% for mode_key in mode_order %}
+  <div class="stat-card">
+    <span class="stat-num">{{ scores[mode_key] }}</span>
+    <span class="stat-label">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }}</span>
+  </div>
   {% endfor %}
+</section>
+
+<p class="coin-hint">Earn coins by playing — unlock new levels. Hint in Spell costs 🪙 {{ hint_cost }}.</p>
+
+<section class="card section-card spin-promo">
+  <h2>🎡 Lucky Spin</h2>
+  <p class="section-desc">
+    Free spin once a day — or pay 🪙 {{ spin.spin_cost if spin is defined else 1000 }} for more.
+    Win bonus coins for unlocks!
+  </p>
+  <a href="{{ url_for('lucky_spin_page') }}" class="btn btn-primary btn-block">Spin the wheel</a>
+</section>
+
+<section class="card section-card">
+  <h2>⚔️ 2-Player Battle</h2>
+  <p class="section-desc">
+    Challenge a friend on this device — take turns spelling words. Winner takes coins!
+  </p>
+  <a href="{{ url_for('battle_setup') }}" class="btn btn-primary btn-block">Start battle</a>
+</section>
+
+<section class="card section-card">
+  <h2>✨ Your aura</h2>
+  <p class="section-desc">
+    Aura is your account theme &amp; skin.
+    <a href="{{ url_for('choose_aura') }}">Change aura</a>
+  </p>
+  <div class="theme-picker" role="group" aria-label="Aura theme">
+    {% for a in aura_choices %}
+    <button type="button" class="theme-swatch" data-theme="{{ a.id }}" data-save-server="1" title="{{ a.label }}">
+      <span class="swatch-dots">
+        {% for d in a.dots %}
+        <span class="dot" style="background:{{ d }}"></span>
+        {% endfor %}
+      </span>
+      {{ a.emoji }} {{ a.label }}
+    </button>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card section-card">
+  <h2>Game modes</h2>
+  <p class="section-desc">
+    <strong>Spell</strong> the word · <strong>Quiz</strong> missing letter · <strong>Pics</strong> match the emoji.
+  </p>
+
+  <div class="mode-grid">
+    {% for mode_key in mode_order %}
+    {% set cfg = modes[mode_key] %}
+    {% set is_unlocked = wallet.unlocked[mode_key] %}
+    {% set cost = unlock_costs.get(mode_key) %}
+
+    {% if is_unlocked %}
+    <div class="mode-card mode-{{ mode_key }} mode-card-actions">
+      <span class="mode-emoji">{{ cfg.emoji }}</span>
+      <h2>{{ cfg.label }}</h2>
+      <p>
+        {% if cfg.phrases %}
+        <strong>{{ cfg.word_count }}</strong> phrases · spoken English
+        {% else %}
+        <strong>{{ cfg.word_count }}</strong> words ·
+        {% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %} letters
+        {% endif %}
+      </p>
+      <div class="mode-meta">
+        {% if mode_key == 'easy' %}
+        <span class="mode-badge mode-badge-free">Free</span>
+        {% endif %}
+        {% if mode_key == 'impossible' %}
+        <span class="mode-badge" style="background:#ffedd5;color:#9a3412">Speak</span>
+        {% endif %}
+        <span class="mode-pts">+{{ cfg.points }} coins each</span>
+      </div>
+      <div class="mode-actions mode-actions-3">
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">{% if cfg.speak_focus %}Speak{% else %}Spell{% endif %}</a>
+        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Quiz</a>
+        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Pics</a>
+      </div>
+    </div>
+    {% else %}
+    <div class="mode-card mode-{{ mode_key }} locked" data-mode="{{ mode_key }}" data-cost="{{ cost }}">
+      <span class="mode-lock">🔒</span>
+      <span class="mode-emoji">{{ cfg.emoji }}</span>
+      <h2>{{ cfg.label }}</h2>
+      <p>
+        {% if cfg.phrases %}
+        <strong>{{ cfg.word_count }}</strong> phrases · spoken English
+        {% else %}
+        <strong>{{ cfg.word_count }}</strong> words ·
+        {% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %} letters
+        {% endif %}
+      </p>
+      <div class="mode-meta">
+        <span class="mode-pts">+{{ cfg.points }} coins each</span>
+      </div>
+      <button
+        type="button"
+        class="btn btn-unlock"
+        data-mode="{{ mode_key }}"
+        data-cost="{{ cost }}"
+        {% if wallet.coins < cost %}disabled{% endif %}
+      >
+        Unlock for 🪙 {{ cost }}
+      </button>
+      {% if wallet.coins < cost %}
+      <p class="unlock-need">Need {{ cost - wallet.coins }} more coins</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}
 

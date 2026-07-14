@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Apex Shade{% endblock %}
+{% block body_class %}page-shade{% endblock %}
+
+{% block content %}
+<section class="shade-hero">
+  <p class="shade-kicker">⚡ APEX SHADE</p>
+  <h1 class="big-title">Absolute power · handle with care</h1>
+  <p class="subtitle">
+    Active powers:
+    {% if god_mode %}
+    <strong class="shade-on">GOD MODE ON</strong>
+    {% else %}
+    <strong class="shade-off">none (mortal… for now)</strong>
+    {% endif %}
+  </p>
+</section>
+
+<!-- DANGER ZONE -->
+<section class="card shade-card shade-danger">
+  <h2>☠️ DANGER ZONE</h2>
+  <p class="section-desc">Nuclear options. These hurt everyone on this device.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn shade-btn shade-nuke" data-action="nuke_points" data-confirm="Nuke ALL points for every player?">Nuke all points</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="purge_players" data-confirm="Purge ALL non-admin players? Cannot undo.">Purge all players</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="scorch_board" data-confirm="Scorch the leaderboard (all scores wiped)?">Scorch leaderboard</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="factory_death" data-confirm="FACTORY DEATH: wipe everything except Apex. Type OK in next step." data-need-ok="1">☢️ Factory death (total wipe)</button>
+  </div>
+
+  <h3 class="shade-sub">God Mode (you only)</h3>
+  <p class="section-desc">Apex becomes unstoppable while playing. Other accounts stay normal.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn shade-btn shade-god" data-action="god_on">GOD MODE ON</button>
+    <button type="button" class="btn shade-btn" data-action="god_off">God mode OFF</button>
+  </div>
+</section>
+
+<!-- INSTANT POWER -->
+<section class="card shade-card">
+  <h2>⚡ Instant power</h2>
+  <p class="section-desc">Inject coins &amp; stars, unlock everything, finish like a boss.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn shade-btn shade-power" data-action="boost_mega">99999 stars + coins</button>
+    <button type="button" class="btn shade-btn shade-power" data-action="unlock_all">Unlock all modes</button>
+    <button type="button" class="btn shade-btn shade-power" data-action="path_win">Instant path win</button>
+    <button type="button" class="btn shade-btn shade-power" data-action="immortal">❤️ Immortal coins (999999)</button>
+    <button type="button" class="btn shade-btn" data-action="reset_me" data-confirm="Reset YOUR run only (coins, stars, unlocks, god mode)?">Reset MY run only</button>
+    <button type="button" class="btn shade-btn shade-power" data-action="force_first">Force #1 on board</button>
+  </div>
+
+  <h3 class="shade-sub">Custom inject</h3>
+  <p class="section-desc">Type any numbers. Apex sets reality.</p>
+  <div class="shade-inject">
+    <label>Coins
+      <input type="number" id="shade-coins" value="50000" min="0" />
+    </label>
+    <label>Stars (each mode)
+      <input type="number" id="shade-points" value="10000" min="0" />
+    </label>
+    <button type="button" class="btn btn-primary" id="shade-inject-btn">Inject stats</button>
+  </div>
+</section>
+
+<!-- CRUSH -->
+<section class="card shade-card shade-crush">
+  <h2>Crush a player</h2>
+  <p class="section-desc">Pick a username. Wipe their points, ban them, or delete their account.</p>
+  <div class="shade-inject">
+    <label>Player username
+      <input type="text" id="shade-target" placeholder="e.g. Max" maxlength="32" />
+    </label>
+  </div>
+  <div class="shade-grid">
+    <button type="button" class="btn shade-btn" data-action="crush" data-need-name="1" data-confirm="Crush their points to zero?">Crush their points</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="ban" data-need-name="1" data-confirm="Ban this account?">Ban account</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="delete" data-need-name="1" data-confirm="DELETE this account forever?">Delete account</button>
+  </div>
+</section>
+
+<!-- TOOLS -->
+<section class="card shade-card">
+  <h2>Apex tools</h2>
+  <p class="section-desc">Peek the system. Control the board. Flex.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn shade-btn" data-action="dump">System dump</button>
+    <button type="button" class="btn shade-btn shade-power" data-action="spawn_fakes">Spawn fake rivals</button>
+    <button type="button" class="btn shade-btn" data-action="clear_fakes" data-confirm="Clear all fake rivals?">Clear fakes</button>
+    <button type="button" class="btn shade-btn" id="shade-refresh">↻ Refresh players</button>
+  </div>
+  <pre id="shade-dump" class="shade-dump hidden" aria-live="polite"></pre>
+</section>
+
+<!-- PLAYERS -->
+<section class="card shade-card">
+  <h2>All players</h2>
+  <p class="section-desc">Accounts on this device (<strong>Apex cannot be removed</strong>):</p>
+  <ul class="shade-player-list" id="shade-player-list">
+    {% for u in users %}
+    <li class="{% if u.is_owner %}is-owner{% endif %}{% if u.is_fake %} is-fake{% endif %}{% if u.is_banned %} is-banned{% endif %}">
+      <strong>{{ u.name }}</strong>
+      {% if u.is_owner %}<span class="admin-badge">APEX</span>{% endif %}
+      {% if u.is_admin and not u.is_owner %}<span class="admin-badge">ADMIN</span>{% endif %}
+      {% if u.is_fake %}<span class="player-badge">FAKE</span>{% endif %}
+      {% if u.is_banned %}<span class="player-badge">BANNED</span>{% endif %}
+      {% if u.god_mode %}<span class="admin-badge">GOD</span>{% endif %}
+      · 🪙 {{ u.coins }}
+      · 🟢{{ u.scores.easy }} 🟡{{ u.scores.normal }} 🔴{{ u.scores.hard }} 💎{{ u.scores.top }} 🔥{{ u.scores.impossible }}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<p id="shade-status" class="admin-status" aria-live="polite"></p>
+
+<p class="hint-note">
+  Mapped to Word Stars: score = stars per mode · XP/lives = coins · path/stops = Easy→Top unlocks.
+  Only <strong>Apex</strong> (owner) can open this room.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/shade.js') }}?v={{ app_version }}"></script>
+{% endblock %}

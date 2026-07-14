@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Battle{% endblock %}
+{% block body_class %}page-battle{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">⚔️ 2-Player Battle</h1>
+  <p class="subtitle">Hot-seat on this device — take turns spelling words.</p>
+</section>
+
+<section class="card section-card">
+  <h2>Set up the match</h2>
+  <p class="section-desc">
+    <strong>You</strong> are Player 1 ({{ name }}). Enter a friend as Player 2.
+    Winner (you) earns 🪙 {{ win_coins }} coins. Draw: 🪙 15 for the host.
+  </p>
+
+  <form method="post" action="{{ url_for('battle_setup') }}" class="battle-form">
+    <label>
+      Player 1
+      <input type="text" value="{{ name }}" disabled />
+    </label>
+    <label>
+      Player 2 name
+      <input type="text" name="player2" maxlength="24" required placeholder="e.g. Mia" autocomplete="off" />
+    </label>
+    <label>
+      Mode
+      <select name="mode" required>
+        {% for m in unlocked %}
+        <option value="{{ m }}">{{ modes[m].emoji }} {{ modes[m].label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Rounds (words)
+      <select name="rounds">
+        <option value="4">4</option>
+        <option value="6" selected>6</option>
+        <option value="8">8</option>
+        <option value="10">10</option>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Start battle!</button>
+  </form>
+</section>
+
+<section class="card section-card">
+  <h2>How it works</h2>
+  <ul class="device-tips">
+    <li>Players alternate turns — one word each time.</li>
+    <li>Type the word correctly to score a point.</li>
+    <li>Most points at the end wins.</li>
+    <li>Pass the device when it’s the other player’s turn.</li>
+  </ul>
+</section>
+{% endblock %}

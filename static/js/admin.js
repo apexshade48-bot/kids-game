@@ -11,15 +11,41 @@
     }, 3000);
   }
 
+  function friendlyError(e) {
+    var msg = (e && e.message) || "Request failed";
+    if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+      return "Cannot reach the server. Run python app.py on the PC, then reload.";
+    }
+    return msg;
+  }
+
+  async function parseJsonResponse(res) {
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      if (res.status === 401 || res.redirected || /<!DOCTYPE|<html/i.test(text)) {
+        throw new Error("Session expired — please log in again.");
+      }
+      throw new Error("Server error (not JSON). Status " + res.status);
+    }
+    return data;
+  }
+
   async function post(url, body) {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
       credentials: "same-origin",
       body: JSON.stringify(body || {}),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Request failed");
+    const data = await parseJsonResponse(res);
+    if (!res.ok) throw new Error((data && data.error) || "Request failed");
     return data;
   }
 
@@ -35,7 +61,7 @@
         });
         showStatus("Coins updated!", true);
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
       }
     });
   });
@@ -51,7 +77,49 @@
           window.location.reload();
         }, 600);
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
+  document.querySelectorAll(".btn-lock-mode").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const userId = btn.dataset.userId;
+      const mode = btn.dataset.mode;
+      if (!confirm("Lock " + mode + " for this player? They will need to unlock it again."))
+        return;
+      try {
+        await post("/admin/api/user/" + userId + "/lock", { mode: mode });
+        showStatus(mode + " locked.", true);
+        setTimeout(function () {
+          window.location.reload();
+        }, 600);
+      } catch (e) {
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
+  document.querySelectorAll(".btn-lock-all").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const userId = btn.dataset.userId;
+      const name = btn.dataset.name || "this player";
+      if (
+        !confirm(
+          'Lock Normal, Hard, and Top for "' +
+            name +
+            '"? Easy stays free.'
+        )
+      )
+        return;
+      try {
+        await post("/admin/api/user/" + userId + "/lock", { mode: "all" });
+        showStatus("Normal, Hard, and Top locked.", true);
+        setTimeout(function () {
+          window.location.reload();
+        }, 600);
+      } catch (e) {
+        showStatus(friendlyError(e), false);
       }
     });
   });
@@ -67,7 +135,32 @@
           window.location.reload();
         }, 600);
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
+  document.querySelectorAll(".btn-reset-password").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const userId = btn.dataset.userId;
+      const name = btn.dataset.name || "player";
+      const password = window.prompt(
+        'New password for "' + name + '" (min 3 characters):',
+        ""
+      );
+      if (password === null) return;
+      if (!password || password.length < 3) {
+        showStatus("Password must be at least 3 characters.", false);
+        return;
+      }
+      if (!confirm('Set password for "' + name + '"?')) return;
+      try {
+        await post("/admin/api/user/" + userId + "/password", {
+          password: password,
+        });
+        showStatus("Password updated for " + name + ".", true);
+      } catch (e) {
+        showStatus(friendlyError(e), false);
       }
     });
   });
@@ -76,7 +169,12 @@
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;
       const name = btn.dataset.name;
-      if (!confirm("Make \"" + name + "\" an admin? They will get full control of the game.")) return;
+      if (
+        !confirm(
+          'Make "' + name + '" an admin? They will get full control of the game.'
+        )
+      )
+        return;
       try {
         await post("/admin/api/user/" + userId + "/role", { is_admin: true });
         showStatus(name + " is now an admin!", true);
@@ -84,7 +182,7 @@
           window.location.reload();
         }, 600);
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
       }
     });
   });
@@ -93,7 +191,7 @@
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;
       const name = btn.dataset.name;
-      if (!confirm("Remove admin access from \"" + name + "\"?")) return;
+      if (!confirm('Remove admin access from "' + name + '"?')) return;
       try {
         await post("/admin/api/user/" + userId + "/role", { is_admin: false });
         showStatus("Admin access removed from " + name + ".", true);
@@ -101,7 +199,7 @@
           window.location.reload();
         }, 600);
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
       }
     });
   });
@@ -110,14 +208,15 @@
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;
       const name = btn.dataset.name;
-      if (!confirm("Delete player \"" + name + "\"? This cannot be undone.")) return;
+      if (!confirm('Delete player "' + name + '"? This cannot be undone.'))
+        return;
       try {
         await post("/admin/api/user/" + userId + "/delete");
         showStatus("Player deleted.", true);
         const row = document.querySelector('tr[data-user-id="' + userId + '"]');
         if (row) row.remove();
       } catch (e) {
-        showStatus(e.message, false);
+        showStatus(friendlyError(e), false);
       }
     });
   });

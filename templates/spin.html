@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Lucky Spin{% endblock %}
+{% block body_class %}page-spin{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">🎡 Lucky Spin</h1>
+  <p class="subtitle">Spin for bonus coins. Free once a day!</p>
+</section>
+
+<section class="card section-card spin-status-card">
+  <div class="spin-meta">
+    <span class="coin-chip">🪙 <span id="spin-coins">{{ spin.coins }}</span> coins</span>
+    <span id="spin-free-badge" class="mode-badge {% if spin.free_available %}mode-badge-free{% else %}spin-badge-used{% endif %}">
+      {% if spin.free_available %}Free spin ready{% else %}Free used today{% endif %}
+    </span>
+  </div>
+  <p class="section-desc" id="spin-hint">
+    {% if spin.free_available %}
+    Your free spin is ready — no coins needed.
+    {% else %}
+    Extra spin costs 🪙 {{ spin.spin_cost }}.
+    {% endif %}
+  </p>
+</section>
+
+<section class="spin-stage card">
+  <div class="spin-pointer" aria-hidden="true">▼</div>
+  <div class="spin-wheel-wrap">
+    <div id="spin-wheel" class="spin-wheel" role="img" aria-label="Prize wheel">
+      {% for seg in spin.segments %}
+      <div class="spin-seg" data-i="{{ loop.index0 }}">
+        <span>{{ seg.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="spin-hub">⭐</div>
+  </div>
+
+  <button type="button" id="btn-spin" class="btn btn-primary btn-block btn-spin-go">
+    {% if spin.free_available %}
+    Spin free!
+    {% else %}
+    Spin for 🪙 {{ spin.spin_cost }}
+    {% endif %}
+  </button>
+  <p id="spin-result" class="feedback" aria-live="assertive"></p>
+</section>
+
+<section class="card section-card">
+  <h2>Prizes</h2>
+  <ul class="spin-prize-list">
+    {% for seg in spin.segments %}
+    <li>{{ seg.label }}</li>
+    {% endfor %}
+  </ul>
+  <p class="section-desc">Jackpot is rare. Keep playing Spell &amp; Quiz to earn coins for more spins!</p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.SPIN_CONFIG = {
+    freeAvailable: {{ spin.free_available | tojson }},
+    spinCost: {{ spin.spin_cost }},
+    coins: {{ spin.coins }},
+    segmentCount: {{ spin.segments | length }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/spin.js') }}?v={{ app_version }}"></script>
+{% endblock %}

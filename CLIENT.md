@@ -29,7 +29,7 @@ Data is saved in a Docker volume (`wordstars_data`).
 
 ## Without Docker (Windows)
 
-1. Install [Python 3.11+](https://www.python.org/downloads/)
+1. Install [Python 3.13+](https://www.python.org/downloads/)
 2. Double-click **`start-client.bat`**
 3. Open **http://localhost:5000**
 
@@ -82,6 +82,8 @@ Run Docker or gunicorn behind **nginx** with **HTTPS**. Voice/mic works best wit
 
 Help page on the site: `/devices`
 
+Healthcheck (for monitoring or load balancers): `/healthz`
+
 ---
 
 ## Support checklist
@@ -104,4 +106,4 @@ Help page on the site: `/devices`
 | `.env` | Secrets & config (create from `.env.example`) |
 | `docker-compose.yml` | One-command hosting |
 
-Built by your developer. Version 2.2.
+Built by your developer. Version 2.7.

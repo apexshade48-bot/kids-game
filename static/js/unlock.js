@@ -4,6 +4,18 @@
 
   const coinBalance = document.getElementById("coin-balance");
 
+  async function parseJsonResponse(res) {
+    const text = await res.text();
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch (e) {
+      if (res.status === 401 || /<!DOCTYPE|<html/i.test(text)) {
+        throw new Error("Session expired — please log in again.");
+      }
+      throw new Error("Server error. Try again.");
+    }
+  }
+
   buttons.forEach(function (btn) {
     btn.addEventListener("click", async function () {
       if (btn.disabled) return;
@@ -15,20 +27,36 @@
       try {
         const res = await fetch("/api/unlock", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
           credentials: "same-origin",
           body: JSON.stringify({ mode: mode }),
         });
-        const data = await res.json();
+        const data = await parseJsonResponse(res);
         if (!res.ok) {
           alert(data.error || "Could not unlock.");
           btn.disabled = false;
           btn.textContent = "Unlock for 🪙 " + cost;
           return;
         }
+        if (
+          coinBalance &&
+          data.wallet &&
+          typeof data.wallet.coins === "number"
+        ) {
+          coinBalance.textContent = data.wallet.coins;
+        }
         window.location.reload();
       } catch (e) {
-        alert("Something went wrong — try again!");
+        var msg = e.message || "Something went wrong — try again!";
+        if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+          msg =
+            "Cannot reach the server. On the PC run: python app.py — then reload this page.";
+        }
+        alert(msg);
         btn.disabled = false;
         btn.textContent = "Unlock for 🪙 " + cost;
       }

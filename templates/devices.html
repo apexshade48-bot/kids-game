@@ -16,9 +16,10 @@
   </p>
 
   <ol class="device-steps">
-    <li>On the computer, run <code>python app.py</code></li>
-    <li>Connect tablet/phone to the <strong>same Wi‑Fi</strong></li>
-    <li>Open one of these links in Chrome, Edge, or Safari:</li>
+    <li>On the computer, keep <code>python app.py</code> running (window stays open)</li>
+    <li>Connect tablet/phone to the <strong>same Wi‑Fi</strong> as this computer (not mobile data)</li>
+    <li>On the tablet, open <strong>Chrome</strong> or <strong>Safari</strong></li>
+    <li>Type one of these links exactly (do <strong>not</strong> use localhost on the tablet):</li>
   </ol>
 
   {% if device_urls %}
@@ -34,12 +35,23 @@
   <p class="device-note">Could not detect your Wi‑Fi address. Ask a grown-up to find the computer's IP (e.g. 192.168.1.5) and open <strong>http://YOUR-IP:{{ port }}</strong></p>
   {% endif %}
 
+  <div class="device-note">
+    <strong>If the tablet cannot open the link:</strong>
+    <ul class="device-tips">
+      <li>PC and tablet must be on the same Wi‑Fi name</li>
+      <li>Keep the black server window open on the PC</li>
+      <li>Type <code>http://</code> at the start (not https)</li>
+      <li>Some routers block “device to device” — try turning off Guest Wi‑Fi / AP isolation</li>
+      <li>Windows Firewall must allow Python / port {{ port }} (start-client.bat does this)</li>
+    </ul>
+  </div>
+
   <h3>Tips</h3>
   <ul class="device-tips">
-    <li><strong>Voice:</strong> works best in Chrome or Edge on Android/Windows. iPad Safari may need typing instead.</li>
-    <li><strong>Typing:</strong> tap the answer box to use your tablet keyboard, or use the on-screen A–Z keys.</li>
-    <li><strong>Add to Home Screen:</strong> in the browser menu, choose “Add to Home Screen” for a full-screen app feel.</li>
-    <li><strong>Accounts sync:</strong> log in with the same name and password on every device.</li>
+    <li><strong>Voice:</strong> often blocked on plain Wi‑Fi HTTP — use typing or letter keys on tablet.</li>
+    <li><strong>Typing:</strong> tap the answer box or use the on-screen A–Z keys.</li>
+    <li><strong>Add to Home Screen:</strong> browser menu → “Add to Home Screen”.</li>
+    <li><strong>Same account:</strong> log in with the same name and password on every device.</li>
   </ul>
 
   <a href="{{ url_for('login') }}" class="btn btn-primary btn-block">Back to login</a>

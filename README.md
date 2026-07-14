@@ -4,15 +4,20 @@ A simple browser game for **ages 4–5**. Kids log in, earn coins in Easy mode, 
 
 ## Features
 
-- **Works on any device** — phone, tablet, laptop (same Wi‑Fi)
+- **Works on any device** — phone, tablet, laptop (same Wi‑Fi or cloud HTTPS)
 - **Login / Sign up** with a name and password  
 - **Coin wallet** — earn coins from correct words  
+- **Spell** — type or **Say it** (voice), optional **Hint** (coins)
+- **Quiz** — missing letter · **Pics** — match the emoji to the word  
 - **Easy** — free, 10 words, 3 letters (+10 each)  
 - **Normal** — unlock for **500 coins**, 10 words, 4 letters (+15 each)  
 - **Hard** — unlock for **1,500 coins**, 12 words, 5–6 letters (+20 each)  
 - **Top** — unlock for **5,000 coins**, 15 words, 7–8 letters (+35 each)  
-- **Voice** (Chrome/Edge) + **tap-to-type** + on-screen A–Z keyboard  
+- **Impossible** — unlock for **10,000 coins**, spoken English phrases for parents/adults (+100 each). Use the mic! Admin can unlock free for mom/dad.  
+- **Streaks & daily progress** — home stats + admin view  
+- **Admin** — coins, unlock/lock modes, reset password, reset stars, roles  
 - **Leaderboard** per mode  
+- **Sounds** on correct / wrong / round complete
 
 ## Run on your computer
 
@@ -22,7 +27,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open **http://localhost:5000** on the computer.
+Open **http://localhost:5000** on the computer. Healthcheck: `http://localhost:5000/healthz`.
 
 The terminal prints links for tablets/phones on the same Wi‑Fi, e.g. `http://192.168.1.5:5000`.
 

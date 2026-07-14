@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Choose your aura{% endblock %}
+{% block body_class %}page-choose-aura{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">✨ Choose your aura</h1>
+  <p class="subtitle">
+    {% if forced %}
+    Hi {{ name }}! Pick an aura for your account before you play.
+    {% else %}
+    Change your aura anytime — it is your look across the app.
+    {% endif %}
+  </p>
+</section>
+
+<section class="card section-card">
+  <form method="post" action="{{ url_for('choose_aura') }}" class="auth-form" id="aura-form">
+    <p class="section-desc">Tap a skin, then save.</p>
+    <div class="aura-picker" role="radiogroup" aria-label="Choose aura">
+      {% for a in aura_choices %}
+      <label class="aura-option {% if selected_aura == a.id %}is-selected{% endif %}">
+        <input
+          type="radio"
+          name="aura"
+          value="{{ a.id }}"
+          {% if selected_aura == a.id %}checked{% endif %}
+          required
+        />
+        <span class="aura-emoji">{{ a.emoji }}</span>
+        <span class="swatch-dots">
+          {% for d in a.dots %}
+          <span class="dot" style="background:{{ d }}"></span>
+          {% endfor %}
+        </span>
+        <span class="aura-label">{{ a.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">
+      {% if forced %}Save aura &amp; play{% else %}Save aura{% endif %}
+    </button>
+    {% if not forced %}
+    <a href="{{ url_for('home') }}" class="btn btn-ghost btn-block">Back to home</a>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".aura-option").forEach(function (lab) {
+  lab.addEventListener("click", function () {
+    document.querySelectorAll(".aura-option").forEach(function (x) {
+      x.classList.remove("is-selected");
+    });
+    lab.classList.add("is-selected");
+    var input = lab.querySelector('input[type="radio"]');
+    if (input) {
+      input.checked = true;
+      // live preview
+      var id = input.value;
+      if (window.WordStarsTheme) {
+        window.WordStarsTheme.apply(id, { saveLocal: true, saveServer: false });
+      } else if (id === "violet") {
+        document.documentElement.removeAttribute("data-theme");
+      } else {
+        document.documentElement.setAttribute("data-theme", id);
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

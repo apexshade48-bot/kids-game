@@ -2,6 +2,13 @@
 
 Best free options for your client (no credit card on some, $0/month).
 
+**Current app version:** check `/healthz` after deploy (`{"ok":true,"version":"4.0"}`).
+
+### Why cloud?
+- Tablet works **anywhere** (no same-Wi‑Fi / firewall fight)
+- **HTTPS** helps browser features (including mic on some devices)
+- PC does not need to stay on
+
 ---
 
 ## Option 1 — PythonAnywhere (recommended, free forever)
@@ -20,7 +27,7 @@ Best free options for your client (no credit card on some, $0/month).
    source venv/bin/activate
    pip install -r requirements.txt
    ```
-4. Open **Web** → **Add a new web app** → **Manual configuration** → **Python 3.11**
+4. Open **Web** → **Add a new web app** → **Manual configuration** → **Python 3.13**
 5. **Code** section → **WSGI configuration file** → edit it to:
 
    ```python
