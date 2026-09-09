@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_avatar.html" import player_avatar %}
+{% from "_name.html" import player_name %}
+{% block title %}{{ profile.apex_id }} — Apex ID{% endblock %}
+{% block body_class %}page-profile{% endblock %}
+
+{% block content %}
+<section class="profile-card">
+  <div class="profile-avatar r6-stage">
+    {{ player_avatar(profile.avatar, 'lg') }}
+  </div>
+
+  <p class="profile-kicker">Apex ID</p>
+  <h1 class="profile-name">
+    {{ player_name(profile.name, profile.name_style, profile.user_id, profile.is_owner, 'pname-lg') }}
+  </h1>
+  <p class="profile-handle">@{{ profile.apex_id }} · #{{ profile.user_id }}</p>
+
+  {% if profile.is_owner %}
+  <p class="profile-badge profile-badge-owner">⚡ Owner</p>
+  {% elif profile.is_admin %}
+  <p class="profile-badge">🛠️ Admin</p>
+  {% endif %}
+
+  <div class="home-stats home-stats-compact profile-stats">
+    <div class="stat-card stat-coins">
+      <span class="stat-num">{{ profile.coins }}</span>
+      <span class="stat-label">Coins</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">⭐ {{ profile.stars }}</span>
+      <span class="stat-label">Stars</span>
+    </div>
+  </div>
+
+  <div class="profile-actions">
+    {% if is_self %}
+    <a href="{{ url_for('shop_page') }}" class="btn btn-primary">✨ Name animation</a>
+    <a href="{{ url_for('chat_page') }}" class="btn btn-ghost">💬 Chat</a>
+    {% else %}
+    <a href="{{ url_for('chat_page', **{'with': profile.user_id}) }}" class="btn btn-primary">💬 Chat with {{ profile.name }}</a>
+    {% endif %}
+  </div>
+</section>
+
+<details class="card section-card stars-details">
+  <summary>⭐ Stars by mode</summary>
+  <div class="home-stats home-stats-modes">
+    {% for mode_key in mode_order %}
+    <div class="stat-card">
+      <span class="stat-num">{{ profile.scores[mode_key] }}</span>
+      <span class="stat-label">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endblock %}

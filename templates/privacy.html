@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Privacy{% endblock %}
+{% block body_class %}page-privacy{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">Privacy</h1>
+  <p class="subtitle">Word Stars is a family word game. We keep data small and local to this app.</p>
+</section>
+
+<section class="card section-card">
+  <h2>What we store</h2>
+  <ul class="device-tips">
+    <li>A player <strong>name</strong> and <strong>password</strong> you choose at sign up.</li>
+    <li>Game progress: coins, stars, unlocks, clothes, chat messages on this server.</li>
+    <li>We do <strong>not</strong> ask for email, phone, or a real-world address.</li>
+  </ul>
+</section>
+
+<section class="card section-card">
+  <h2>What we do not do</h2>
+  <ul class="device-tips">
+    <li>No ads, no trackers, no sale of player data.</li>
+    <li>No location, contacts, or camera.</li>
+    <li>The microphone is used only when a player taps <strong>Say it</strong>, and only in the browser.</li>
+  </ul>
+</section>
+
+<section class="card section-card">
+  <h2>Chat</h2>
+  <p class="section-desc">
+    Players on the same game can send short messages. Do not share real names, addresses, or passwords in chat.
+    A parent or admin can turn accounts off from the Admin panel.
+  </p>
+</section>
+
+<section class="card section-card">
+  <h2>Parents</h2>
+  <p class="section-desc">
+    This game is meant for a family or classroom. The owner account (<strong>Apex</strong> by default)
+    can reset passwords, remove players, and manage coins.
+  </p>
+  <p class="section-desc">Questions: ask the person who hosts this Word Stars server.</p>
+</section>
+{% endblock %}

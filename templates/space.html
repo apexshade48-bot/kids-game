@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_avatar.html" import player_avatar %}
+{% block title %}Word Stars — Space Run{% endblock %}
+{% block body_class %}page-space{% endblock %}
+
+{% block content %}
+<div class="space-scene" id="space-scene">
+  <div class="space-stars" id="space-stars"></div>
+  <div class="space-stars space-stars-far" id="space-stars-far"></div>
+  <div class="space-warp" id="space-warp"></div>
+
+  <p class="space-title">You are running in space</p>
+
+  <div class="space-runner is-running" id="space-runner">
+    {{ player_avatar(avatar, 'lg') }}
+  </div>
+
+  <p class="space-hint" id="space-hint">Tap and hold to sprint 🚀</p>
+  <div class="space-actions">
+    <a href="{{ url_for('shop_page') }}" class="btn btn-ghost">👕 Clothes</a>
+    <a href="{{ url_for('home') }}" class="btn btn-ghost">🏠 Home</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/space.js') }}?v={{ app_version }}"></script>
+{% endblock %}

@@ -1,3 +1,4 @@
+{% from "_name.html" import player_name %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,7 +44,7 @@
         {% if wallet %}
         <span class="top-coins">🪙 {{ wallet.coins }}</span>
         {% endif %}
-        <span class="hello">Hi, {{ session.get('user_name', 'Friend') }}!</span>
+        <span class="hello">Hi, {{ player_name(session.get('user_name', 'Friend'), (avatar.name_style if avatar else 'plain'), session.get('user_id'), is_owner) }}!</span>
         <form action="{{ url_for('logout') }}" method="post" class="logout-form">
           <button type="submit" class="btn btn-small btn-ghost">Log out</button>
         </form>
@@ -71,6 +72,14 @@
         <span class="nav-icon">🏠</span>
         <span>Home</span>
       </a>
+      <a href="{{ url_for('shop_page') }}" class="nav-item {% if request.endpoint == 'shop_page' %}active{% endif %}">
+        <span class="nav-icon">👕</span>
+        <span>Shop</span>
+      </a>
+      <a href="{{ url_for('space_run') }}" class="nav-item {% if request.endpoint == 'space_run' %}active{% endif %}">
+        <span class="nav-icon">🚀</span>
+        <span>Space</span>
+      </a>
       <a href="{{ url_for('battle_setup') }}" class="nav-item {% if request.endpoint in ('battle_setup', 'battle_play') %}active{% endif %}">
         <span class="nav-icon">⚔️</span>
         <span>Battle</span>
@@ -79,7 +88,11 @@
         <span class="nav-icon">🎡</span>
         <span>Spin</span>
       </a>
-      <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
+      <a href="{{ url_for('chat_page') }}" class="nav-item {% if request.endpoint == 'chat_page' %}active{% endif %}">
+        <span class="nav-icon">💬</span>
+        <span>Chat</span>
+      </a>
+      <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint in ('leaderboard', 'player_profile') %}active{% endif %}">
         <span class="nav-icon">🏆</span>
         <span>Board</span>
       </a>
@@ -87,6 +100,12 @@
       <a href="{{ url_for('admin_panel') }}" class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
         <span class="nav-icon">🛠️</span>
         <span>Admin</span>
+      </a>
+      {% endif %}
+      {% if is_hacker or is_owner %}
+      <a href="{{ url_for('hacker_panel') }}" class="nav-item {% if request.endpoint == 'hacker_panel' %}active{% endif %}">
+        <span class="nav-icon">💻</span>
+        <span>Hacker</span>
       </a>
       {% endif %}
       {% if is_owner %}

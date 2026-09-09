@@ -33,7 +33,7 @@ from words import (
     word_hint,
 )
 
-APP_VERSION = "5.3"
+APP_VERSION = "6.6"
 PORT = int(os.environ.get("PORT", DEFAULT_PORT))
 DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "0").lower() in ("1", "true", "yes")
@@ -71,6 +71,7 @@ def ensure_db():
         session["is_admin"] = db.is_user_admin(session["user_id"])
         session["is_owner"] = db.is_owner_admin_name(session.get("user_name", ""))
         session["god_mode"] = db.is_user_god(session["user_id"])
+        session["is_hacker"] = db.is_user_hacker(session["user_id"])
         # Keep aura in session; force choose if missing (existing accounts)
         if not session.get("aura"):
             aura = db.get_user_aura(session["user_id"])
@@ -85,6 +86,8 @@ def ensure_db():
                     "healthz",
                     "devices_help",
                     "api_set_aura",
+                    "privacy",
+                    "assetlinks",
                 }
                 if ep not in allowed and not str(request.path).startswith("/static"):
                     return redirect(url_for("choose_aura"))
@@ -97,17 +100,22 @@ def inject_globals():
         "device_urls": get_device_urls(PORT),
         "unlock_costs": db.UNLOCK_COSTS,
         "is_admin": False,
+        "is_owner": False,
+        "is_hacker": False,
         "wallet": None,
         "user_aura": None,
         "aura_choices": db.AURA_CHOICES,
+        "avatar": None,
     }
     if "user_id" in session:
         base["wallet"] = db.get_user_wallet(session["user_id"])
         base["is_admin"] = session.get("is_admin", False)
         base["is_owner"] = session.get("is_owner", False)
         base["god_mode"] = session.get("god_mode", False)
+        base["is_hacker"] = session.get("is_hacker", False) or session.get("is_owner", False)
         aura = session.get("aura") or db.get_user_aura(session["user_id"])
         base["user_aura"] = aura
+        base["avatar"] = db.get_avatar(session["user_id"])
         if aura:
             session["aura"] = aura
     return base
@@ -174,6 +182,29 @@ def owner_required(f):
     return wrapped
 
 
+def hacker_required(f):
+    """Owner or a player gifted the Hacker Panel."""
+
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if not login_required():
+            if _wants_json():
+                return jsonify({"error": "Not logged in."}), 401
+            return redirect(url_for("login"))
+        if not (
+            session.get("is_hacker")
+            or session.get("is_owner")
+            or db.is_user_hacker(session["user_id"])
+        ):
+            if _wants_json():
+                return jsonify({"error": "Hacker Panel is gift-only."}), 403
+            flash("Hacker Panel is gift-only. Ask Apex.", "error")
+            return redirect(url_for("home"))
+        return f(*args, **kwargs)
+
+    return wrapped
+
+
 @app.route("/devices")
 def devices_help():
     return render_template(
@@ -186,6 +217,32 @@ def devices_help():
 @app.route("/healthz")
 def healthz():
     return jsonify({"ok": True, "version": APP_VERSION}), 200
+
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/.well-known/assetlinks.json")
+def assetlinks():
+    """Digital Asset Links for a Play Store Trusted Web Activity."""
+    sha = (os.environ.get("ANDROID_CERT_SHA256") or "").strip()
+    package = os.environ.get("ANDROID_PACKAGE", "com.wordstars.app")
+    if not sha:
+        return jsonify([]), 200
+    return jsonify(
+        [
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": package,
+                    "sha256_cert_fingerprints": [sha],
+                },
+            }
+        ]
+    )
 
 
 @app.route("/")
@@ -242,6 +299,9 @@ def login():
         session["is_admin"] = result.get("is_admin", False)
         session["is_owner"] = db.is_owner_admin_name(result["name"])
         session["god_mode"] = result.get("god_mode", False)
+        session["is_hacker"] = result.get("is_hacker", False) or db.is_owner_admin_name(
+            result["name"]
+        )
         session["aura"] = result.get("aura")
         if not result.get("aura"):
             return redirect(url_for("choose_aura"))
@@ -308,9 +368,15 @@ def home():
     if not db.get_user_aura(session["user_id"]):
         return redirect(url_for("choose_aura"))
     scores = db.get_user_scores(session["user_id"])
+    streak_bonus = db.claim_streak_bonus(session["user_id"])
     wallet = db.get_user_wallet(session["user_id"])
     progress = db.get_user_progress(session["user_id"])
     spin = db.get_spin_status(session["user_id"])
+    if streak_bonus.get("granted"):
+        flash(
+            f"🔥 {streak_bonus['streak']}-day streak! +{streak_bonus['amount']} coins.",
+            "success",
+        )
     return render_template(
         "home.html",
         name=session.get("user_name", "Friend"),
@@ -322,7 +388,162 @@ def home():
         progress=progress,
         hint_cost=db.HINT_COST,
         spin=spin,
+        streak_bonus=streak_bonus,
+        avatar=db.get_avatar(session["user_id"]),
     )
+
+
+@app.route("/shop")
+def shop_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    catalog = db.get_shop_catalog(session["user_id"])
+    market = db.get_player_market(session["user_id"])
+    return render_template(
+        "shop.html",
+        name=session.get("user_name", "Friend"),
+        catalog=catalog,
+        market=market,
+    )
+
+
+@app.route("/api/shop/buy", methods=["POST"])
+def api_shop_buy():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    item_id = (data.get("item_id") or "").strip()
+    ok, result = db.buy_shop_item(session["user_id"], item_id)
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/space")
+def space_run():
+    if not login_required():
+        return redirect(url_for("login"))
+    return render_template(
+        "space.html",
+        name=session.get("user_name", "Friend"),
+        avatar=db.get_avatar(session["user_id"]),
+    )
+
+
+@app.route("/api/shop/list", methods=["POST"])
+def api_shop_list():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    item_id = (data.get("item_id") or "").strip()
+    ok, result = db.list_item_for_sale(
+        session["user_id"], item_id, data.get("price")
+    )
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/shop/unlist", methods=["POST"])
+def api_shop_unlist():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        listing_id = int(data.get("listing_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Missing listing"}), 400
+    ok, result = db.unlist_item(session["user_id"], listing_id)
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/shop/buy-player", methods=["POST"])
+def api_shop_buy_player():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        listing_id = int(data.get("listing_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Missing listing"}), 400
+    ok, result = db.buy_player_listing(session["user_id"], listing_id)
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/shop/equip", methods=["POST"])
+def api_shop_equip():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    item_id = (data.get("item_id") or "").strip()
+    ok, result = db.equip_shop_item(session["user_id"], item_id)
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/player/<int:user_id>")
+def player_profile(user_id):
+    if not login_required():
+        return redirect(url_for("login"))
+    profile = db.get_player_profile(user_id)
+    if not profile:
+        flash("That Apex ID is gone.", "error")
+        return redirect(url_for("leaderboard"))
+    return render_template(
+        "profile.html",
+        profile=profile,
+        is_self=user_id == session["user_id"],
+        modes=MODE_CONFIG,
+        mode_order=MODE_ORDER,
+    )
+
+
+@app.route("/chat")
+def chat_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    with_id = request.args.get("with", type=int)
+    other = db.get_player_profile(with_id) if with_id else None
+    if with_id and not other:
+        flash("That player is gone.", "error")
+        return redirect(url_for("chat_page"))
+    return render_template(
+        "chat.html",
+        other=other,
+        with_id=with_id if other else None,
+        name=session.get("user_name", "Friend"),
+    )
+
+
+@app.route("/api/chat", methods=["GET"])
+def api_chat_list():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    after_id = request.args.get("after", default=0, type=int) or 0
+    with_id = request.args.get("with", default=None, type=int)
+    messages = db.get_chat_messages(
+        session["user_id"], with_user_id=with_id, after_id=after_id
+    )
+    return jsonify({"ok": True, "messages": messages})
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat_send():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    to_user_id = data.get("to")
+    if to_user_id in ("", None):
+        to_user_id = None
+    ok, result = db.post_chat(session["user_id"], data.get("body") or "", to_user_id)
+    if not ok:
+        return jsonify({"error": result}), 400
+    return jsonify({"ok": True, "message": result})
 
 
 def _require_unlocked_mode(mode: str):
@@ -346,6 +567,7 @@ def play(mode):
 
     words = get_round_words(mode)
     round_data = [{"word": w, "hint": word_hint(w)} for w in words]
+    hide_word = bool(cfg.get("hide_word")) and not cfg.get("phrases")
     return render_template(
         "play.html",
         mode=mode,
@@ -354,6 +576,7 @@ def play(mode):
         words=round_data,
         hint_cost=db.HINT_COST,
         speak_focus=bool(cfg.get("speak_focus")),
+        hide_word=hide_word,
         mode_blurb=cfg.get("blurb") or "",
         name=session.get("user_name", "Friend"),
     )
@@ -367,6 +590,9 @@ def quiz(mode):
     cfg, err = _require_unlocked_mode(mode)
     if err:
         return err
+    if cfg.get("phrases"):
+        flash("Family Speak is voice practice — use Speak, not Quiz.", "error")
+        return redirect(url_for("play", mode=mode))
 
     questions = get_quiz_questions(mode)
     return render_template(
@@ -388,6 +614,9 @@ def pics_quiz(mode):
     cfg, err = _require_unlocked_mode(mode)
     if err:
         return err
+    if cfg.get("phrases"):
+        flash("Family Speak is voice practice — use Speak, not Pics.", "error")
+        return redirect(url_for("play", mode=mode))
 
     questions = get_picture_quiz_questions(mode)
     return render_template(
@@ -923,6 +1152,30 @@ def shade_api(action):
         if not target:
             return jsonify({"error": "Player not found."}), 404
         ok, msg = db.shade_delete_user(target["id"])
+    elif action == "gift_hacker":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.set_user_hacker(target["id"], True)
+    elif action == "revoke_hacker":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.set_user_hacker(target["id"], False)
+    elif action == "strip_admin":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.strip_admin_gear(target["id"])
+    elif action == "gift_admin":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.gift_admin_gear(target["id"])
     elif action == "dump":
         return jsonify({"ok": True, "dump": db.shade_system_dump()})
     elif action == "spawn_fakes":
@@ -938,6 +1191,51 @@ def shade_api(action):
         return jsonify({"error": msg}), 400
     session["god_mode"] = db.is_user_god(uid)
     return jsonify({"ok": True, "message": msg, "god_mode": session["god_mode"]})
+
+
+@app.route("/hacker")
+@hacker_required
+def hacker_panel():
+    wallet = db.get_user_wallet(session["user_id"])
+    return render_template(
+        "hacker.html",
+        name=session.get("user_name", "Hacker"),
+        wallet=wallet,
+        is_owner=session.get("is_owner", False),
+    )
+
+
+@app.route("/hacker/api/<action>", methods=["POST"])
+@hacker_required
+def hacker_api(action):
+    uid = session["user_id"]
+    data = request.get_json(silent=True) or {}
+    action = (action or "").strip().lower()
+
+    if action == "coins":
+        ok, msg = db.hacker_add_coins(uid, data.get("amount") or 0)
+    elif action == "unlock_all":
+        ok, msg = db.shade_unlock_all(uid)
+    elif action == "stars":
+        ok, msg = db.shade_inject_stats(uid, points_per_mode=99999)
+        if ok:
+            msg = "Stars maxed in every mode."
+    elif action == "bank":
+        ok, msg = db.shade_inject_stats(uid, coins=1_000_000_000_000_000)
+        if ok:
+            msg = "Hacker bank: 1Q coins."
+    elif action == "path_win":
+        ok, msg = db.shade_inject_stats(uid, coins=1_000_000, points_per_mode=50000)
+        if ok:
+            db.shade_unlock_all(uid)
+            msg = "Path win — modes unlocked, coins & stars boosted."
+    else:
+        return jsonify({"error": "Unknown hack."}), 400
+
+    if not ok:
+        return jsonify({"error": msg}), 400
+    wallet = db.get_user_wallet(uid)
+    return jsonify({"ok": True, "message": msg, "coins": wallet["coins"]})
 
 
 @app.route("/api/leaderboard/<mode>")

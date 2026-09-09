@@ -9,3 +9,8 @@ kids_word_game.db
 .DS_Store
 Thumbs.db
 client-package/
+*.jks
+*.keystore
+android/keystore.properties
+play-store/*.aab
+play-store/*.apk

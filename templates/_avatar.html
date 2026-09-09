@@ -1,0 +1,47 @@
+{% macro player_avatar(avatar, size='md') %}
+{% set shirt = avatar.shirt if avatar else none %}
+{% set pants = avatar.pants if avatar else none %}
+{% set hat = avatar.hat if avatar else none %}
+{% set acc_place = hat.place if hat else 'head' %}
+{% set acc_on = hat and hat.id != 'hat_none' %}
+{% set glow = (shirt and shirt.aura) or (pants and pants.aura) or (hat and hat.aura) %}
+<div
+  class="r6 r6-{{ size }}{% if shirt and shirt.legendary %} is-legendary{% endif %}{% if glow %} has-admin-aura{% endif %}{% if shirt and shirt.aura %} aura-shirt{% endif %}{% if pants and pants.aura %} aura-pants{% endif %}{% if hat and hat.aura %} aura-acc{% endif %}"
+  style="--shirt: {{ shirt.color if shirt else '#0d69ac' }}; --shirt2: {{ shirt.accent if shirt else '#0a4f82' }}; --pants: {{ pants.color if pants else '#4b974b' }}; --pants2: {{ pants.accent if pants else '#3a7a3a' }};"
+  aria-hidden="true"
+>
+  {% if glow %}
+  <span class="admin-aura-ring"></span>
+  <span class="admin-aura-ring admin-aura-ring-2"></span>
+  <span class="admin-aura-ring admin-aura-ring-3"></span>
+  <span class="admin-aura-mist"></span>
+  {% endif %}
+  <div class="r6-acc r6-acc-head">
+    {% if acc_on and acc_place == 'head' %}{{ hat.emoji }}{% endif %}
+  </div>
+  <div class="r6-head">
+    <span class="r6-eye"></span>
+    <span class="r6-eye"></span>
+    <span class="r6-smile"></span>
+    {% if acc_on and acc_place == 'face' %}
+    <span class="r6-acc r6-acc-face">{{ hat.emoji }}</span>
+    {% endif %}
+  </div>
+  <div class="r6-mid">
+    <div class="r6-arm r6-arm-l pattern-{{ shirt.pattern if shirt else 'solid' }}"></div>
+    <div class="r6-torso pattern-{{ shirt.pattern if shirt else 'solid' }}">
+      {% if shirt and shirt.badge %}
+      <span class="r6-badge">{{ shirt.badge }}</span>
+      {% endif %}
+      {% if acc_on and acc_place == 'back' %}
+      <span class="r6-acc r6-acc-back">{{ hat.emoji }}</span>
+      {% endif %}
+    </div>
+    <div class="r6-arm r6-arm-r pattern-{{ shirt.pattern if shirt else 'solid' }}"></div>
+  </div>
+  <div class="r6-legs">
+    <div class="r6-leg r6-leg-l pattern-{{ pants.pattern if pants else 'solid' }}"></div>
+    <div class="r6-leg r6-leg-r pattern-{{ pants.pattern if pants else 'solid' }}"></div>
+  </div>
+</div>
+{% endmacro %}

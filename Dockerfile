@@ -12,7 +12,7 @@ ENV BEHIND_PROXY=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py database.py network.py words.py ./
+COPY app.py database.py network.py words.py shop.py wsgi.py ./
 COPY templates/ templates/
 COPY static/ static/
 

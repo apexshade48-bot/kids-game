@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Hacker Panel{% endblock %}
+{% block body_class %}page-hacker{% endblock %}
+
+{% block content %}
+<section class="hacker-hero">
+  <p class="hacker-kicker">// HACKER_PANEL</p>
+  <h1 class="big-title">Access granted, {{ name }}</h1>
+  <p class="subtitle">
+    Gifted by Apex. Hacks only hit <strong>your</strong> account.
+    {% if is_owner %} You can gift this panel from Shade.{% endif %}
+  </p>
+  <p class="coin-chip">🪙 <span id="hacker-coins">{{ wallet.coins }}</span></p>
+</section>
+
+<section class="card hacker-card">
+  <h2>Coin hacks</h2>
+  <p class="section-desc">Add coins to your wallet. Does not take from anyone else.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn hacker-btn" data-action="coins" data-amount="1000">+1K</button>
+    <button type="button" class="btn hacker-btn" data-action="coins" data-amount="50000">+50K</button>
+    <button type="button" class="btn hacker-btn" data-action="coins" data-amount="1000000">+1M</button>
+    <button type="button" class="btn hacker-btn" data-action="coins" data-amount="1000000000">+1B</button>
+    <button type="button" class="btn hacker-btn" data-action="bank">Fill 1Q bank</button>
+  </div>
+</section>
+
+<section class="card hacker-card">
+  <h2>Game hacks</h2>
+  <p class="section-desc">Unlock modes and pump your stars. Your run only.</p>
+  <div class="shade-grid">
+    <button type="button" class="btn hacker-btn" data-action="unlock_all">Unlock all modes</button>
+    <button type="button" class="btn hacker-btn" data-action="stars">Max stars</button>
+    <button type="button" class="btn hacker-btn" data-action="path_win">Path win</button>
+  </div>
+</section>
+
+<p id="hacker-status" class="admin-status" aria-live="polite"></p>
+<p class="hint-note">Apex can take this panel away in Shade anytime.</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hacker.js') }}?v={{ app_version }}"></script>
+{% endblock %}

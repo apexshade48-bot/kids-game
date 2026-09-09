@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% from "_avatar.html" import player_avatar %}
+{% from "_name.html" import player_name %}
+{% block title %}Word Stars — Shop{% endblock %}
+{% block body_class %}page-shop{% endblock %}
+
+{% block content %}
+<section class="hero hero-with-avatar">
+  <div id="shop-avatar-wrap" class="r6-stage">
+    {{ player_avatar(catalog.avatar, 'lg') }}
+  </div>
+  <div>
+    <h1 class="big-title">👕 Shop</h1>
+    <p class="subtitle">Buy clothes or a name animation — coins leave the buyer and go to the seller.</p>
+    <p class="coin-chip">🪙 <span id="shop-coins">{{ catalog.coins }}</span> coins</p>
+    <a href="{{ url_for('space_run') }}" class="btn btn-primary btn-small">🚀 Run in space</a>
+  </div>
+</section>
+
+<p id="shop-status" class="feedback" aria-live="polite"></p>
+
+<div class="tabs mode-tabs shop-tabs" role="tablist">
+  <button type="button" class="tab active" data-slot="shirt">👕 Shirts</button>
+  <button type="button" class="tab" data-slot="pants">👖 Pants</button>
+  <button type="button" class="tab" data-slot="hat">✨ Accessories</button>
+  <button type="button" class="tab" data-slot="name">Aa Names</button>
+  <button type="button" class="tab" data-slot="players">🤝 Players</button>
+</div>
+
+{% macro shop_cards(items, kind) %}
+<section class="shop-grid{% if kind != 'shirt' %} hidden{% endif %}" data-slot-panel="{{ kind }}">
+  {% for item in items %}
+  <article
+    class="shop-card{% if item.legendary %} shop-card-legendary{% endif %}{% if item.admin_set %} shop-card-admin{% endif %}{% if item.equipped %} is-equipped{% endif %}{% if item.owned %} is-owned{% endif %}"
+    data-item-id="{{ item.id }}"
+    data-slot="{{ item.slot }}"
+    data-owned="{{ '1' if item.owned else '0' }}"
+    data-equipped="{{ '1' if item.equipped else '0' }}"
+    data-cost="{{ item.cost }}"
+  >
+    <div class="shop-card-preview" style="--shirt: {{ item.color }}; --shirt2: {{ item.accent }}; --pants: {{ item.color }}; --pants2: {{ item.accent }};">
+      {% if kind == 'hat' %}
+      <span class="shop-hat-emoji">{{ item.emoji }}</span>
+      {% elif kind == 'pants' %}
+      <div class="mini-pants">
+        <span class="pattern-{{ item.pattern }}"></span>
+        <span class="pattern-{{ item.pattern }}"></span>
+      </div>
+      {% elif kind == 'name' %}
+      <div class="name-preview">
+        {{ player_name(session.get('user_name', 'Apex'), item.anim or 'plain') }}
+      </div>
+      {% else %}
+      <div class="mini-shirt pattern-{{ item.pattern }}">
+        {% if item.badge %}<span>{{ item.badge }}</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <h3>{{ item.emoji }} {{ item.label }}</h3>
+    <p class="shop-blurb">{{ item.blurb }}</p>
+    {% if item.admin_set %}
+    <p class="shop-legendary-tag">⚡ Admin · only 2 players · {{ item.owner_count }}/{{ item.owner_limit }}</p>
+    {% elif item.legendary %}
+    <p class="shop-legendary-tag">🏆 Legendary</p>
+    {% endif %}
+    <p class="shop-price">{% if item.cost == 0 %}Free{% else %}🪙 {{ item.cost_label or item.cost }}{% endif %}</p>
+    {% if item.equipped %}
+    <button type="button" class="btn btn-ghost btn-block" disabled>{% if kind == 'name' %}Using{% else %}Wearing{% endif %}</button>
+    {% elif item.owned %}
+    <button type="button" class="btn btn-primary btn-block btn-equip" data-item-id="{{ item.id }}">{% if kind == 'name' %}Use it{% else %}Wear it{% endif %}</button>
+    {% elif item.admin_set and not item.can_buy %}
+    <button type="button" class="btn btn-ghost btn-block" disabled>Sold out (2/2)</button>
+    {% else %}
+    <button
+      type="button"
+      class="btn btn-unlock btn-block btn-buy"
+      data-item-id="{{ item.id }}"
+      data-cost="{{ item.cost }}"
+      {% if catalog.coins < item.cost %}disabled{% endif %}
+    >
+      {% if catalog.coins < item.cost %}Need 🪙 {{ item.cost_label or item.cost }}{% else %}Buy{% endif %}
+    </button>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endmacro %}
+
+{{ shop_cards(catalog.shirts, 'shirt') }}
+{{ shop_cards(catalog.pants, 'pants') }}
+{{ shop_cards(catalog.hats, 'hat') }}
+{{ shop_cards(catalog.names, 'name') }}
+
+<section class="shop-player-market hidden" data-slot-panel="players">
+  <div class="card section-card">
+    <h2>Sell your clothes</h2>
+    <p class="section-desc">Set a price. When someone buys, coins leave their account and land in yours.</p>
+    {% if market.sellable %}
+    <div class="sell-list">
+      {% for item in market.sellable %}
+      <div class="sell-row">
+        <span class="sell-name">{{ item.emoji }} {{ item.label }}</span>
+        {% if item.listed %}
+        <span class="mode-badge">Listed</span>
+        {% else %}
+        <label class="sell-price-wrap">
+          🪙
+          <input
+            type="number"
+            class="sell-price"
+            min="1"
+            max="1000000000000000"
+            value="{{ item.cost if item.cost > 0 else 50 }}"
+            data-item-id="{{ item.id }}"
+          />
+        </label>
+        <button type="button" class="btn btn-small btn-primary btn-list" data-item-id="{{ item.id }}">Sell</button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="section-desc">Buy extra clothes first, then you can sell them here.</p>
+    {% endif %}
+  </div>
+
+  <h2 class="market-heading">For sale now</h2>
+  {% if market.listings %}
+  <div class="shop-grid">
+    {% for listing in market.listings %}
+    <article class="shop-card">
+      <div class="shop-card-preview" style="--shirt: {{ listing.item.color }}; --shirt2: {{ listing.item.accent }}; --pants: {{ listing.item.color }}; --pants2: {{ listing.item.accent }};">
+        <span class="shop-hat-emoji">{{ listing.item.emoji }}</span>
+      </div>
+      <h3>{{ listing.item.label }}</h3>
+      <p class="shop-blurb">Seller: {{ player_name(listing.seller_name, listing.seller_name_style, listing.seller_id) }}</p>
+      <p class="shop-price">🪙 {{ listing.price_label }}</p>
+      {% if listing.is_mine %}
+      <button type="button" class="btn btn-ghost btn-block btn-unlist" data-listing-id="{{ listing.id }}">Take down</button>
+      {% else %}
+      <button
+        type="button"
+        class="btn btn-unlock btn-block btn-buy-player"
+        data-listing-id="{{ listing.id }}"
+        data-cost="{{ listing.price }}"
+        {% if catalog.coins < listing.price %}disabled{% endif %}
+      >
+        {% if catalog.coins < listing.price %}Need 🪙 {{ listing.price_label }}{% else %}Buy — pay {{ listing.seller_name }}{% endif %}
+      </button>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="section-desc">No player sales yet. List something above!</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/shop.js') }}?v={{ app_version }}"></script>
+{% endblock %}

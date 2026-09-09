@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_name.html" import player_name %}
 {% block title %}Word Stars — Leaderboard{% endblock %}
 {% block body_class %}page-leaderboard{% endblock %}
 
@@ -20,7 +21,7 @@
   <a href="{{ url_for('leaderboard', mode='normal') }}" class="tab {% if mode == 'normal' %}active{% endif %}">🟡 Normal</a>
   <a href="{{ url_for('leaderboard', mode='hard') }}" class="tab {% if mode == 'hard' %}active{% endif %}">🔴 Hard</a>
   <a href="{{ url_for('leaderboard', mode='top') }}" class="tab {% if mode == 'top' %}active{% endif %}">💎 Top</a>
-  <a href="{{ url_for('leaderboard', mode='impossible') }}" class="tab {% if mode == 'impossible' %}active{% endif %}">🔥 Impossible</a>
+  <a href="{{ url_for('leaderboard', mode='impossible') }}" class="tab {% if mode == 'impossible' %}active{% endif %}">🗣️ Family</a>
 </div>
 
 <section class="card section-card">
@@ -43,7 +44,7 @@
           {% else %}{{ row.rank }}{% endif %}
         </span>
         <span class="board-name">
-          {{ row.name }}
+          {{ player_name(row.name, row.name_style, row.user_id, row.is_owner) }}
           {% if row.user_id == current_user_id %}<em>you</em>{% endif %}
         </span>
         {% if board_kind == 'coins' %}

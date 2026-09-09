@@ -1,14 +1,28 @@
 {% extends "base.html" %}
+{% from "_avatar.html" import player_avatar %}
+{% from "_name.html" import player_name %}
 {% block title %}Word Stars — Home{% endblock %}
 {% block body_class %}page-home{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <h1 class="big-title">Hi, {{ name }}</h1>
-  <p class="subtitle">Spell, quiz, pics, battle a friend, or lucky spin. Earn coins!</p>
+<section class="hero hero-with-avatar">
+  <a href="{{ url_for('player_profile', user_id=session.get('user_id')) }}" class="home-avatar-link r6-stage" title="Open your Apex ID">
+    {{ player_avatar(avatar, 'md') }}
+  </a>
+  <div>
+    <h1 class="big-title">Hi, {{ player_name(name, avatar.name_style if avatar else 'plain', session.get('user_id'), is_owner) }}</h1>
+    <p class="subtitle">Tap Play — hear the word, then say it or type it.</p>
+    <div class="hero-avatar-actions">
+      <a href="{{ url_for('player_profile', user_id=session.get('user_id')) }}" class="btn btn-ghost btn-small">🪪 Apex ID</a>
+      <a href="{{ url_for('shop_page') }}" class="btn btn-ghost btn-small">👕 Change clothes</a>
+      <a href="{{ url_for('space_run') }}" class="btn btn-primary btn-small">🚀 Run in space</a>
+    </div>
+  </div>
 </section>
 
-<section class="home-stats" aria-label="Your stats">
+<a href="{{ url_for('play', mode='easy') }}" class="btn btn-primary btn-play-now">▶ Play now</a>
+
+<section class="home-stats home-stats-compact" aria-label="Your stats">
   <div class="stat-card stat-coins">
     <span class="stat-num" id="coin-balance">{{ wallet.coins }}</span>
     <span class="stat-label">Coins</span>
@@ -19,63 +33,16 @@
   </div>
   <div class="stat-card">
     <span class="stat-num">{{ progress.today.correct }}</span>
-    <span class="stat-label">Today correct</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-num">{{ progress.week_correct }}</span>
-    <span class="stat-label">Week stars</span>
-  </div>
-  {% for mode_key in mode_order %}
-  <div class="stat-card">
-    <span class="stat-num">{{ scores[mode_key] }}</span>
-    <span class="stat-label">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }}</span>
-  </div>
-  {% endfor %}
-</section>
-
-<p class="coin-hint">Earn coins by playing — unlock new levels. Hint in Spell costs 🪙 {{ hint_cost }}.</p>
-
-<section class="card section-card spin-promo">
-  <h2>🎡 Lucky Spin</h2>
-  <p class="section-desc">
-    Free spin once a day — or pay 🪙 {{ spin.spin_cost if spin is defined else 1000 }} for more.
-    Win bonus coins for unlocks!
-  </p>
-  <a href="{{ url_for('lucky_spin_page') }}" class="btn btn-primary btn-block">Spin the wheel</a>
-</section>
-
-<section class="card section-card">
-  <h2>⚔️ 2-Player Battle</h2>
-  <p class="section-desc">
-    Challenge a friend on this device — take turns spelling words. Winner takes coins!
-  </p>
-  <a href="{{ url_for('battle_setup') }}" class="btn btn-primary btn-block">Start battle</a>
-</section>
-
-<section class="card section-card">
-  <h2>✨ Your aura</h2>
-  <p class="section-desc">
-    Aura is your account theme &amp; skin.
-    <a href="{{ url_for('choose_aura') }}">Change aura</a>
-  </p>
-  <div class="theme-picker" role="group" aria-label="Aura theme">
-    {% for a in aura_choices %}
-    <button type="button" class="theme-swatch" data-theme="{{ a.id }}" data-save-server="1" title="{{ a.label }}">
-      <span class="swatch-dots">
-        {% for d in a.dots %}
-        <span class="dot" style="background:{{ d }}"></span>
-        {% endfor %}
-      </span>
-      {{ a.emoji }} {{ a.label }}
-    </button>
-    {% endfor %}
+    <span class="stat-label">Today</span>
   </div>
 </section>
+
+<p class="coin-hint">Play to earn coins. Unlock new levels. Hint in Spell costs 🪙 {{ hint_cost }}.</p>
 
 <section class="card section-card">
   <h2>Game modes</h2>
   <p class="section-desc">
-    <strong>Spell</strong> the word · <strong>Quiz</strong> missing letter · <strong>Pics</strong> match the emoji.
+    <strong>Spell</strong> the word · <strong>Quiz</strong> missing letter · <strong>Pics</strong> match the picture.
   </p>
 
   <div class="mode-grid">
@@ -83,33 +50,41 @@
     {% set cfg = modes[mode_key] %}
     {% set is_unlocked = wallet.unlocked[mode_key] %}
     {% set cost = unlock_costs.get(mode_key) %}
+    {% set is_phrases = cfg.phrases %}
 
     {% if is_unlocked %}
     <div class="mode-card mode-{{ mode_key }} mode-card-actions">
       <span class="mode-emoji">{{ cfg.emoji }}</span>
       <h2>{{ cfg.label }}</h2>
       <p>
-        {% if cfg.phrases %}
-        <strong>{{ cfg.word_count }}</strong> phrases · spoken English
+        {% if is_phrases %}
+        <strong>{{ cfg.word_count }}</strong> phrases · hear &amp; say
         {% else %}
         <strong>{{ cfg.word_count }}</strong> words ·
         {% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %} letters
+        {% if cfg.hide_word %} · picture + hear it{% endif %}
         {% endif %}
       </p>
       <div class="mode-meta">
         {% if mode_key == 'easy' %}
         <span class="mode-badge mode-badge-free">Free</span>
         {% endif %}
-        {% if mode_key == 'impossible' %}
-        <span class="mode-badge" style="background:#ffedd5;color:#9a3412">Speak</span>
+        {% if is_phrases %}
+        <span class="mode-badge" style="background:#ffedd5;color:#9a3412">Family</span>
         {% endif %}
         <span class="mode-pts">+{{ cfg.points }} coins each</span>
       </div>
+      {% if is_phrases %}
+      <div class="mode-actions">
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Speak</a>
+      </div>
+      {% else %}
       <div class="mode-actions mode-actions-3">
-        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">{% if cfg.speak_focus %}Speak{% else %}Spell{% endif %}</a>
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Spell</a>
         <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Quiz</a>
         <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Pics</a>
       </div>
+      {% endif %}
     </div>
     {% else %}
     <div class="mode-card mode-{{ mode_key }} locked" data-mode="{{ mode_key }}" data-cost="{{ cost }}">
@@ -117,7 +92,7 @@
       <span class="mode-emoji">{{ cfg.emoji }}</span>
       <h2>{{ cfg.label }}</h2>
       <p>
-        {% if cfg.phrases %}
+        {% if is_phrases %}
         <strong>{{ cfg.word_count }}</strong> phrases · spoken English
         {% else %}
         <strong>{{ cfg.word_count }}</strong> words ·
@@ -144,6 +119,27 @@
     {% endfor %}
   </div>
 </section>
+
+<details class="card section-card stars-details">
+  <summary>⭐ Your stars</summary>
+  <div class="home-stats home-stats-modes">
+    <div class="stat-card">
+      <span class="stat-num">{{ progress.week_correct }}</span>
+      <span class="stat-label">Week stars</span>
+    </div>
+    {% for mode_key in mode_order %}
+    <div class="stat-card">
+      <span class="stat-num">{{ scores[mode_key] }}</span>
+      <span class="stat-label">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+
+<p class="section-desc aura-home-link">
+  ✨ Aura: your look.
+  <a href="{{ url_for('choose_aura') }}">Change aura</a>
+</p>
 {% endblock %}
 
 {% block scripts %}

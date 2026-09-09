@@ -38,6 +38,47 @@
     return data;
   }
 
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function playerActionsHtml(u) {
+    if (u.is_owner) return "";
+    var name = escapeHtml(u.name);
+    var html = '<div class="shade-player-actions">';
+    if (u.is_hacker) {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn" data-action="revoke_hacker" data-name="' +
+        name +
+        '" data-confirm="Take Hacker Panel from ' +
+        name +
+        '?">Revoke Hacker</button>';
+    } else {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_hacker" data-name="' +
+        name +
+        '">Gift Hacker</button>';
+    }
+    if (u.has_admin_gear) {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-nuke" data-action="strip_admin" data-name="' +
+        name +
+        '" data-confirm="Strip Admin shirt/pants/crown from ' +
+        name +
+        '?">Strip gear</button>';
+    } else {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_admin" data-name="' +
+        name +
+        '">Gift Admin gear</button>';
+    }
+    html += "</div>";
+    return html;
+  }
+
   function renderPlayers(users) {
     if (!listEl || !users) return;
     listEl.innerHTML = "";
@@ -52,81 +93,87 @@
       if (u.is_fake) badges += '<span class="player-badge">FAKE</span> ';
       if (u.is_banned) badges += '<span class="player-badge">BANNED</span> ';
       if (u.god_mode) badges += '<span class="admin-badge">GOD</span> ';
-      const s = u.scores || {};
+      if (u.is_hacker && !u.is_owner) badges += '<span class="admin-badge">HACKER</span> ';
+      if (u.has_admin_gear) badges += '<span class="admin-badge">⚡ GEAR</span> ';
       li.innerHTML =
-        "<strong>" +
-        (u.name || "?") +
+        "<div><strong>" +
+        escapeHtml(u.name) +
         "</strong> " +
         badges +
         "· 🪙 " +
         (u.coins || 0) +
-        " · 🟢" +
-        (s.easy || 0) +
-        " 🟡" +
-        (s.normal || 0) +
-        " 🔴" +
-        (s.hard || 0) +
-        " 💎" +
-        (s.top || 0);
+        "</div>" +
+        playerActionsHtml(u);
       listEl.appendChild(li);
     });
   }
 
-  document.querySelectorAll("[data-action]").forEach(function (btn) {
-    btn.addEventListener("click", async function () {
-      const action = btn.dataset.action;
-      if (!action) return;
+  async function runAction(btn) {
+    const action = btn.dataset.action;
+    if (!action) return;
 
-      if (btn.dataset.confirm) {
-        if (btn.dataset.needOk) {
-          const typed = window.prompt(btn.dataset.confirm + "\nType OK to continue:");
-          if (typed !== "OK") {
-            show("Cancelled.", false);
-            return;
-          }
-        } else if (!window.confirm(btn.dataset.confirm)) {
+    if (btn.dataset.confirm) {
+      if (btn.dataset.needOk) {
+        const typed = window.prompt(btn.dataset.confirm + "\nType OK to continue:");
+        if (typed !== "OK") {
+          show("Cancelled.", false);
           return;
         }
+      } else if (!window.confirm(btn.dataset.confirm)) {
+        return;
       }
+    }
 
-      const body = {};
-      if (btn.dataset.needName) {
-        const name = (document.getElementById("shade-target") || {}).value || "";
-        if (!name.trim()) {
-          show("Enter a player username.", false);
-          return;
-        }
-        body.name = name.trim();
+    const body = {};
+    var name = (btn.dataset.name || "").trim();
+    if (!name && btn.dataset.needName) {
+      name = ((document.getElementById("shade-target") || {}).value || "").trim();
+    }
+    if (btn.dataset.needName || btn.dataset.name) {
+      if (!name) {
+        show("Enter a player username.", false);
+        return;
       }
+      body.name = name;
+    }
 
-      try {
-        const data = await post(action, body);
-        if (action === "dump" && data.dump) {
-          dumpEl.classList.remove("hidden");
-          dumpEl.textContent = JSON.stringify(data.dump, null, 2);
-          show("System dump ready.", true);
-          return;
-        }
-        show(data.message || "Done.", true);
-        if (action === "god_on" || action === "god_off" || action === "reset_me") {
-          setTimeout(function () {
-            window.location.reload();
-          }, 600);
-        } else if (
-          action === "spawn_fakes" ||
-          action === "clear_fakes" ||
-          action === "purge_players" ||
-          action === "delete" ||
-          action === "factory_death"
-        ) {
-          setTimeout(function () {
-            window.location.reload();
-          }, 700);
-        }
-      } catch (e) {
-        show(e.message || "Failed", false);
+    try {
+      const data = await post(action, body);
+      if (action === "dump" && data.dump) {
+        dumpEl.classList.remove("hidden");
+        dumpEl.textContent = JSON.stringify(data.dump, null, 2);
+        show("System dump ready.", true);
+        return;
       }
-    });
+      show(data.message || "Done.", true);
+      if (action === "god_on" || action === "god_off" || action === "reset_me") {
+        setTimeout(function () {
+          window.location.reload();
+        }, 600);
+      } else if (
+        action === "spawn_fakes" ||
+        action === "clear_fakes" ||
+        action === "purge_players" ||
+        action === "delete" ||
+        action === "factory_death" ||
+        action === "gift_hacker" ||
+        action === "revoke_hacker" ||
+        action === "strip_admin" ||
+        action === "gift_admin"
+      ) {
+        setTimeout(function () {
+          window.location.reload();
+        }, 500);
+      }
+    } catch (e) {
+      show(e.message || "Failed", false);
+    }
+  }
+
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    runAction(btn);
   });
 
   const injectBtn = document.getElementById("shade-inject-btn");

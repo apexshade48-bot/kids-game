@@ -13,6 +13,7 @@
   data-hint-cost="{{ hint_cost if hint_cost is defined else 5 }}"
   data-home-url="{{ url_for('home') }}"
   data-speak-focus="{{ '1' if speak_focus else '0' }}"
+  data-hide-word="{{ '1' if hide_word else '0' }}"
 >
   <div class="play-header">
     <a href="{{ url_for('home') }}" class="btn btn-small btn-ghost">← Home</a>
@@ -26,14 +27,22 @@
   <section id="play-panel" class="play-panel">
     {% if speak_focus %}
     <p class="hint-note speak-focus-note">
-      🗣️ <strong>Spoken English practice</strong> — use the mic and say the full phrase out loud.
+      🗣️ <strong>Family Speak</strong> — hear the phrase, then say it out loud.
       {% if mode_blurb %}<br />{{ mode_blurb }}{% endif %}
     </p>
     {% endif %}
     <div class="word-stage">
-      <div id="word-hint" class="word-hint">✨</div>
-      <div id="target-word" class="target-word{% if speak_focus %} target-phrase{% endif %}">—</div>
-      <p class="coach">{% if speak_focus %}🎤 Press Say it — speak clearly{% else %}Say it (mic) or type it{% endif %}</p>
+      <div id="word-hint" class="word-hint{% if hide_word %} word-hint-focus{% endif %}">✨</div>
+      <div id="target-word" class="target-word{% if speak_focus %} target-phrase{% endif %}{% if hide_word %} is-hidden{% endif %}">—</div>
+      <p class="coach" id="play-coach">
+        {% if speak_focus %}
+        🔊 Hear it, then 🎤 Say it
+        {% elif hide_word %}
+        Hear the word, then type it
+        {% else %}
+        Hear it, say it, or type it
+        {% endif %}
+      </p>
     </div>
 
     <div class="answer-row">
@@ -46,25 +55,29 @@
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
-          autocomplete="off"
           spellcheck="false"
           enterkeyhint="go"
-          inputmode="{% if speak_focus %}text{% else %}text{% endif %}"
+          inputmode="text"
           maxlength="{% if speak_focus %}48{% else %}12{% endif %}"
           aria-label="Type your answer"
-          placeholder="{% if speak_focus %}Type phrase — use Space between words{% else %}Tap to type{% endif %}"
+          placeholder="{% if speak_focus %}Type phrase — use Space between words{% elif hide_word %}Type the word{% else %}Tap to type{% endif %}"
         />
       </label>
       <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear">⌫</button>
     </div>
 
     <div class="action-row">
+      <button type="button" id="btn-hear" class="btn btn-hear" title="Hear the word">
+        🔊 Hear it
+      </button>
       <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word">
         🎤 Say it
       </button>
+      {% if hide_word %}
       <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter">
         💡 Hint
       </button>
+      {% endif %}
       <button type="button" id="btn-check" class="btn btn-primary">
         ✓ Check
       </button>
@@ -82,7 +95,10 @@
       <p id="done-summary" class="subtitle"></p>
       <div class="done-actions">
         <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Play again</a>
+        {% if not speak_focus %}
         <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-ghost">Quiz</a>
+        <a href="{{ url_for('pics_quiz', mode=mode) }}" class="btn btn-ghost">Pics</a>
+        {% endif %}
         <a href="{{ url_for('home') }}" class="btn btn-ghost">Home</a>
         <a href="{{ url_for('leaderboard', mode=mode) }}" class="btn btn-ghost">Leaderboard</a>
       </div>

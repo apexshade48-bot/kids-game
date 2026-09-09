@@ -44,6 +44,7 @@
     feedback: document.getElementById("feedback"),
     voiceStatus: document.getElementById("voice-status"),
     keyboard: document.getElementById("keyboard"),
+    btnHear: document.getElementById("btn-hear"),
     btnMic: document.getElementById("btn-mic"),
     btnHint: document.getElementById("btn-hint"),
     btnCheck: document.getElementById("btn-check"),
@@ -79,7 +80,43 @@
   }
 
   const speakFocus = root.dataset.speakFocus === "1";
+  const hideWord = root.dataset.hideWord === "1";
   const maxTyped = speakFocus ? 48 : 12;
+
+  function maskWord(word) {
+    return String(word || "")
+      .split("")
+      .map(function (ch) {
+        return /[a-z]/i.test(ch) ? "•" : ch;
+      })
+      .join(" ");
+  }
+
+  function speakText(text) {
+    if (!text || !window.speechSynthesis) return false;
+    try {
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(String(text));
+      u.lang = "en-US";
+      u.rate = 0.85;
+      u.pitch = 1.05;
+      window.speechSynthesis.speak(u);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function showTarget(word, revealed) {
+    if (!els.targetWord) return;
+    if (hideWord && !revealed) {
+      els.targetWord.textContent = maskWord(word);
+      els.targetWord.classList.add("is-hidden");
+    } else {
+      els.targetWord.textContent = word;
+      els.targetWord.classList.remove("is-hidden");
+    }
+  }
 
   function cleanPhraseInput(value) {
     // Allow letters + spaces for Impossible phrases (e.g. "how are you")
@@ -103,7 +140,6 @@
     if (els.typed) els.typed.textContent = typed;
     if (els.mobileInput && els.mobileInput.value !== typed) {
       els.mobileInput.value = typed;
-      // Keep caret at end after we rewrite value
       try {
         var len = typed.length;
         els.mobileInput.setSelectionRange(len, len);
@@ -150,7 +186,7 @@
     els.feedback.textContent = "";
     els.feedback.className = "feedback";
     els.wordHint.textContent = item.hint || "✨";
-    els.targetWord.textContent = item.word;
+    showTarget(item.word, false);
     els.progress.textContent = index + 1 + " / " + words.length;
     els.roundScore.textContent = "⭐ " + roundPoints;
     if (els.btnHint) {
@@ -160,6 +196,7 @@
     if (voiceSupported) {
       setVoiceStatus("Tap 🎤 Say it, then speak the word.");
     }
+    speakText(item.word);
   }
 
   function bindKey(btn, insert) {
@@ -191,7 +228,6 @@
       bindKey(btn, letter);
       els.keyboard.appendChild(btn);
     });
-    // Space bar required for Impossible phrases ("good morning")
     if (speakFocus) {
       const space = document.createElement("button");
       space.type = "button";
@@ -249,6 +285,8 @@
         ? "Great speaking! 🎉 +" + pointsPerWord + " 🪙"
         : "Yes! +" + pointsPerWord + " ⭐ +" + pointsPerWord + " 🪙";
     els.feedback.className = "feedback ok";
+    var item = current();
+    showTarget(item ? item.word : "", true);
     els.targetWord.classList.add("celebrate");
     if (sfx && sfx.correct) sfx.correct();
     await awardPoints();
@@ -290,8 +328,6 @@
     if (tokens.indexOf(want) !== -1) return true;
     if (tokens.join("") === want) return true;
 
-    // single letter names: "see" for C, "bee" for B, etc. not used
-    // fuzzy: spoken contains target
     if (want.length >= 3 && got.indexOf(want) !== -1) return true;
     if (want.length >= 3 && want.indexOf(got) !== -1 && got.length >= want.length - 1)
       return true;
@@ -407,7 +443,6 @@
   function startListeningFromGesture() {
     if (busy || !voiceSupported || !els.btnMic) return;
 
-    // Toggle off if already listening
     if (listening || recognition) {
       hardStopMic();
       setVoiceStatus("Stopped. Tap 🎤 Say it to try again.");
@@ -418,7 +453,6 @@
       setVoiceStatus(
         "Voice needs localhost or HTTPS. On this PC use http://127.0.0.1:5000 — or type the word."
       );
-      // Still try — some browsers allow it
     }
 
     const rec = new SpeechRecognitionCtor();
@@ -430,7 +464,6 @@
     rec.maxAlternatives = 5;
     rec.continuous = false;
 
-    // Help Chrome prefer the target word when possible
     try {
       const item = current();
       const GrammarList =
@@ -456,7 +489,6 @@
     };
 
     rec.onspeechend = function () {
-      // End session so we get a final result faster
       try {
         rec.stop();
       } catch (e) {}
@@ -488,7 +520,6 @@
         }
       }
 
-      // Live preview
       if (bestAny) {
         if (speakFocus) {
           setTyped(cleanPhraseInput(bestAny));
@@ -502,7 +533,6 @@
         }
       }
 
-      // Final transcript
       if (event.results[event.results.length - 1].isFinal) {
         const finalText = bestFinal || bestAny;
         if (finalText) {
@@ -520,7 +550,6 @@
 
     rec.onerror = function (event) {
       const code = (event && event.error) || "";
-      // Ignore aborted from our own hardStopMic
       if (code === "aborted") {
         setMicListening(false);
         recognition = null;
@@ -552,7 +581,6 @@
     };
 
     rec.onend = function () {
-      // If Chrome ended without a result, show tip
       if (listening && Date.now() - lastResultAt > 400) {
         setVoiceStatus("Tap 🎤 Say it and try again.");
       }
@@ -560,10 +588,8 @@
       if (recognition === rec) recognition = null;
     };
 
-    // CRITICAL: start() in the same user-gesture turn (no await above)
     try {
       rec.start();
-      // Optimistic UI if onstart is slow
       setMicListening(true);
       setVoiceStatus("Starting mic… speak after the beep / red button.");
     } catch (err) {
@@ -571,7 +597,6 @@
       setMicListening(false);
       const name = (err && err.name) || "";
       if (name === "InvalidStateError") {
-        // Already started — recreate once, still in gesture if sync
         try {
           hardStopMic();
           const rec2 = new SpeechRecognitionCtor();
@@ -619,7 +644,6 @@
       setVoiceStatus("Tap 🎤 Say it, then speak the word.");
     }
 
-    // Use click only — keeps user gesture for recognition.start()
     els.btnMic.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -640,9 +664,7 @@
         checkAnswer(typed, "type");
         return;
       }
-      // Allow Space in Impossible phrase mode (do not block default)
       if (speakFocus && (e.key === " " || e.code === "Space")) {
-        // Let the browser insert the space; input handler will clean it
         return;
       }
     });
@@ -665,13 +687,22 @@
     });
   }
 
+  if (els.btnHear) {
+    els.btnHear.addEventListener("click", function () {
+      var item = current();
+      if (!item || busy) return;
+      if (!speakText(item.word)) {
+        setVoiceStatus("Hear it needs a browser that can talk. Try Chrome.");
+      }
+    });
+  }
+
   document.addEventListener("keydown", function (e) {
     if (
       busy ||
       (els.donePanel && !els.donePanel.classList.contains("hidden"))
     )
       return;
-    // When typing in the box, browser handles letters + spaces
     if (document.activeElement === els.mobileInput) return;
     if (e.key === "Enter") {
       e.preventDefault();

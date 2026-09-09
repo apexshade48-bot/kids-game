@@ -74,7 +74,16 @@
     <button type="button" class="btn shade-btn" data-action="crush" data-need-name="1" data-confirm="Crush their points to zero?">Crush their points</button>
     <button type="button" class="btn shade-btn shade-nuke" data-action="ban" data-need-name="1" data-confirm="Ban this account?">Ban account</button>
     <button type="button" class="btn shade-btn shade-nuke" data-action="delete" data-need-name="1" data-confirm="DELETE this account forever?">Delete account</button>
+    <button type="button" class="btn shade-btn shade-nuke" data-action="strip_admin" data-need-name="1" data-confirm="Remove Admin shirt, pants, and crown from this player? They can be bought again (2-player cap).">Strip Admin gear</button>
   </div>
+</section>
+
+<section class="card shade-card">
+  <h2>💻 Gift Hacker Panel</h2>
+  <p class="section-desc">
+    Gift Hacker or Admin gear on the player list below — one tap. They get a <strong>Hacker</strong> tab.
+    You can take it back anytime. Apex always keeps Hacker.
+  </p>
 </section>
 
 <!-- TOOLS -->
@@ -93,18 +102,35 @@
 <!-- PLAYERS -->
 <section class="card shade-card">
   <h2>All players</h2>
-  <p class="section-desc">Accounts on this device (<strong>Apex cannot be removed</strong>):</p>
+  <p class="section-desc">Tap a button on a player to gift Hacker or Admin gear. Apex cannot be removed.</p>
   <ul class="shade-player-list" id="shade-player-list">
     {% for u in users %}
     <li class="{% if u.is_owner %}is-owner{% endif %}{% if u.is_fake %} is-fake{% endif %}{% if u.is_banned %} is-banned{% endif %}">
-      <strong>{{ u.name }}</strong>
-      {% if u.is_owner %}<span class="admin-badge">APEX</span>{% endif %}
-      {% if u.is_admin and not u.is_owner %}<span class="admin-badge">ADMIN</span>{% endif %}
-      {% if u.is_fake %}<span class="player-badge">FAKE</span>{% endif %}
-      {% if u.is_banned %}<span class="player-badge">BANNED</span>{% endif %}
-      {% if u.god_mode %}<span class="admin-badge">GOD</span>{% endif %}
-      · 🪙 {{ u.coins }}
-      · 🟢{{ u.scores.easy }} 🟡{{ u.scores.normal }} 🔴{{ u.scores.hard }} 💎{{ u.scores.top }} 🔥{{ u.scores.impossible }}
+      <div>
+        <strong>{{ u.name }}</strong>
+        {% if u.is_owner %}<span class="admin-badge">APEX</span>{% endif %}
+        {% if u.is_admin and not u.is_owner %}<span class="admin-badge">ADMIN</span>{% endif %}
+        {% if u.is_fake %}<span class="player-badge">FAKE</span>{% endif %}
+        {% if u.is_banned %}<span class="player-badge">BANNED</span>{% endif %}
+        {% if u.god_mode %}<span class="admin-badge">GOD</span>{% endif %}
+        {% if u.is_hacker and not u.is_owner %}<span class="admin-badge">HACKER</span>{% endif %}
+        {% if u.has_admin_gear %}<span class="admin-badge">⚡ GEAR</span>{% endif %}
+        · 🪙 {{ u.coins }}
+      </div>
+      {% if not u.is_owner %}
+      <div class="shade-player-actions">
+        {% if u.is_hacker %}
+        <button type="button" class="btn btn-small shade-btn" data-action="revoke_hacker" data-name="{{ u.name }}" data-confirm="Take Hacker Panel from {{ u.name }}?">Revoke Hacker</button>
+        {% else %}
+        <button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_hacker" data-name="{{ u.name }}">Gift Hacker</button>
+        {% endif %}
+        {% if u.has_admin_gear %}
+        <button type="button" class="btn btn-small shade-btn shade-nuke" data-action="strip_admin" data-name="{{ u.name }}" data-confirm="Strip Admin shirt/pants/crown from {{ u.name }}?">Strip gear</button>
+        {% else %}
+        <button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_admin" data-name="{{ u.name }}">Gift Admin gear</button>
+        {% endif %}
+      </div>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>

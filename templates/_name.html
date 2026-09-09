@@ -1,0 +1,19 @@
+{# Clickable Apex ID with optional bought name animation. #}
+{% macro player_name(name, style='plain', user_id=None, owner=False, extra='') %}
+{% set st = style or 'plain' %}
+{% set cls = 'pname pname-' ~ st ~ ((' ' ~ extra) if extra else '') %}
+{% if user_id %}
+<a href="{{ url_for('player_profile', user_id=user_id) }}" class="{{ cls }}" title="Open {{ name }}'s Apex ID">
+{% else %}
+<span class="{{ cls }}">
+{% endif %}
+  {% if st in ('wave', 'sparkle') %}
+    {% for ch in name %}
+    <span style="--i: {{ loop.index0 }}">{% if ch == ' ' %}&nbsp;{% else %}{{ ch }}{% endif %}</span>
+    {% endfor %}
+  {% else %}
+    {{ name }}
+  {% endif %}
+{% if user_id %}</a>{% else %}</span>{% endif %}
+{% if owner %}<span class="pname-owner" title="Owner">⚡</span>{% endif %}
+{% endmacro %}

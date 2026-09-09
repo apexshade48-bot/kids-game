@@ -2,19 +2,22 @@
 
 A simple browser game for **ages 4–5**. Kids log in, earn coins in Easy mode, unlock higher levels, then **say** or **type** words to earn stars and coins. Works on **phones, tablets, laptops, and desktops**.
 
+Code: [github.com/apexshade48-bot/Kids-word-game](https://github.com/apexshade48-bot/Kids-word-game). Play Store wrap: **PLAY_STORE.md**.
+
 ## Features
 
 - **Works on any device** — phone, tablet, laptop (same Wi‑Fi or cloud HTTPS)
 - **Login / Sign up** with a name and password  
 - **Coin wallet** — earn coins from correct words  
-- **Spell** — type or **Say it** (voice), optional **Hint** (coins)
+- **Avatar shop** — Roblox-style blocky avatar with **shirts, pants, and accessories**; **Million Shirt** is 1M coins; **Admin / owner shirt, pants, crown** are **1Q coins** (1 quadrillion), only **2 players** can buy them, and they glow with aura  
+- **Spell** — **Hear it**, then type or **Say it** (voice). Easy shows the word; Normal+ hides it (picture + sound). **Hint** on hidden words (coins)
 - **Quiz** — missing letter · **Pics** — match the emoji to the word  
-- **Easy** — free, 10 words, 3 letters (+10 each)  
-- **Normal** — unlock for **500 coins**, 10 words, 4 letters (+15 each)  
-- **Hard** — unlock for **1,500 coins**, 12 words, 5–6 letters (+20 each)  
-- **Top** — unlock for **5,000 coins**, 15 words, 7–8 letters (+35 each)  
-- **Impossible** — unlock for **10,000 coins**, spoken English phrases for parents/adults (+100 each). Use the mic! Admin can unlock free for mom/dad.  
-- **Streaks & daily progress** — home stats + admin view  
+- **Easy** — free, 8 words, 3 letters (**+20** coins each)  
+- **Normal** — unlock for **300 coins**, 8 words, 4 letters (**+35** each)  
+- **Hard** — unlock for **800 coins**, 10 words, 5–6 letters (**+50** each)  
+- **Top** — unlock for **2,000 coins**, 10 words, 7–8 letters (**+80** each)  
+- **Family** — unlock for **3,000 coins**, spoken English phrases (**+100** each). Hear & say. Admin can unlock free for mom/dad.  
+- **Streaks** — coins on day 1 / 3 / 7 (and every 7 days after)  
 - **Admin** — coins, unlock/lock modes, reset password, reset stars, roles  
 - **Leaderboard** per mode  
 - **Sounds** on correct / wrong / round complete

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_name.html" import player_name %}
+{% block title %}Word Stars — Chat{% endblock %}
+{% block body_class %}page-chat{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">💬 Chat</h1>
+  <p class="subtitle">
+    {% if other %}
+    Talking with {{ player_name(other.name, other.name_style, other.user_id, other.is_owner) }}
+    {% else %}
+    Say hi to everyone. Tap a name to open their Apex ID.
+    {% endif %}
+  </p>
+</section>
+
+<div class="tabs mode-tabs">
+  <a href="{{ url_for('chat_page') }}" class="tab {% if not with_id %}active{% endif %}">Lobby</a>
+  {% if other %}
+  <a href="{{ url_for('chat_page', **{'with': other.user_id}) }}" class="tab active">{{ other.name }}</a>
+  {% endif %}
+</div>
+
+<section class="card chat-card">
+  <div id="chat-log" class="chat-log" aria-live="polite"></div>
+  <form id="chat-form" class="chat-form" autocomplete="off">
+    <input
+      type="text"
+      id="chat-input"
+      maxlength="80"
+      placeholder="{% if other %}Message {{ other.name }}…{% else %}Type a message…{% endif %}"
+      aria-label="Chat message"
+    />
+    <button type="submit" class="btn btn-primary" id="chat-send">Send</button>
+  </form>
+  <p id="chat-status" class="feedback" aria-live="polite"></p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.CHAT_CONFIG = {
+    withId: {{ (with_id or none) | tojson }},
+    meId: {{ session.get('user_id') | tojson }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/chat.js') }}?v={{ app_version }}"></script>
+{% endblock %}

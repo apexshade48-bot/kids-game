@@ -2,55 +2,53 @@
 
 import random
 
-# ~80 three-letter words (ages ~4–5 easy reading)
+# Concrete, picturable 3-letter words (ages ~4–5)
 EASY_WORDS = [
-    "cat", "dog", "bat", "hat", "mat", "rat", "sat", "cap", "map", "tap",
-    "lap", "nap", "bag", "tag", "wag", "log", "fog", "hog", "big", "pig",
-    "dig", "fig", "run", "fun", "sun", "bun", "cup", "pup", "bus", "jam",
-    "can", "fan", "pan", "van", "bed", "red", "fed", "pen", "hen", "ten",
-    "box", "fox", "six", "key", "toy", "boy", "cow", "bee", "ear", "ice",
-    "bug", "mud", "tub", "rub", "cub", "web", "egg", "owl", "ant", "jet",
-    "net", "wet", "pet", "get", "let", "set", "bet", "dot", "pot", "hot",
-    "lot", "not", "got", "bit", "fit", "hit", "sit", "zip", "lip", "tip",
-    # food / home / nature
-    "pie", "ham", "nut", "pea", "tea", "mug", "jar", "lid", "rug", "sky",
-    "sea", "mud", "yam", "gum", "pop", "hop", "top", "mop", "cop", "mom",
-    "dad", "kid", "man", "arm", "leg", "toe", "eye", "jaw", "gum", "wax",
+    "cat", "dog", "bat", "hat", "rat", "cap", "map", "bag",
+    "pig", "sun", "bun", "cup", "pup", "bus", "jam", "pan",
+    "van", "bed", "pen", "hen", "box", "fox", "key", "toy",
+    "boy", "cow", "bee", "ear", "ice", "bug", "mud", "tub",
+    "cub", "web", "egg", "owl", "ant", "jet", "net", "pet",
+    "pot", "hot", "zip", "lip", "pie", "ham", "nut", "pea",
+    "tea", "mug", "jar", "lid", "rug", "sky", "sea", "yam",
+    "gum", "hop", "top", "mop", "mom", "dad", "kid", "arm",
+    "leg", "toe", "eye", "car", "fan", "can", "red", "ten",
+    "six", "cow",
 ]
 
-# ~80 four-letter words (normal mode)
+# Four-letter words (normal mode) — all length 4
 NORMAL_WORDS = [
-    "book", "ball", "bird", "fish", "frog", "duck", "lion", "bear", "goat", "lamb",
-    "milk", "cake", "rice", "corn", "pear", "plum", "tree", "leaf", "seed", "rain",
-    "wind", "moon", "star", "ship", "boat", "road", "park", "home", "door", "hand",
-    "foot", "nose", "eyes", "face", "head", "hair", "play", "jump", "walk", "sing",
-    "read", "stop", "help", "good", "blue", "pink", "kite", "doll", "sock", "toys",
-    "baby", "bell", "belt", "coat", "cold", "farm", "fire", "flag", "game", "gift",
-    "gold", "hill", "hope", "king", "lake", "love", "nest", "note", "open", "path",
-    "pool", "ring", "sand", "snow", "soft", "swim", "tail", "town", "wall", "warm",
-    # school / food / animals
-    "desk", "lamp", "fork", "soup", "meat", "bean", "chip", "soda", "wolf", "deer",
-    "crab", "seal", "pony", "mule", "crow", "dove", "beak", "wing", "claw", "bark",
-    "desk", "glue", "clip", "tape", "math", "song", "band", "drum", "flute", "horn",
+    "book", "ball", "bird", "fish", "frog", "duck", "lion", "bear",
+    "goat", "lamb", "milk", "cake", "rice", "corn", "pear", "plum",
+    "tree", "leaf", "seed", "rain", "wind", "moon", "star", "ship",
+    "boat", "road", "park", "home", "door", "hand", "foot", "nose",
+    "eyes", "face", "head", "hair", "play", "jump", "walk", "sing",
+    "read", "stop", "help", "good", "blue", "pink", "kite", "doll",
+    "sock", "toys", "baby", "bell", "belt", "coat", "cold", "farm",
+    "fire", "flag", "game", "gift", "gold", "hill", "king", "lake",
+    "love", "nest", "note", "open", "path", "pool", "ring", "sand",
+    "snow", "swim", "tail", "town", "wall", "warm", "lamp", "fork",
+    "soup", "meat", "bean", "chip", "soda", "wolf", "deer", "crab",
+    "seal", "pony", "crow", "dove", "beak", "wing", "claw", "desk",
+    "glue", "clip", "tape", "song", "band", "drum", "horn", "soap",
 ]
 
-# ~50 five–six letter words (hard mode)
+# Five–six letter words only (hard mode)
 HARD_WORDS = [
     "apple", "flower", "banana", "rocket", "purple", "yellow", "orange",
     "garden", "animal", "button", "circle", "family", "friend", "happy",
     "kitten", "monkey", "pencil", "rabbit", "school", "turtle", "window",
     "zebra", "cheese", "dragon", "guitar", "planet", "summer", "winter",
     "butter", "castle", "candle", "cookie", "dancer", "forest", "market",
-    "mother", "nature", "ocean", "panda", "pirate", "rainbow", "shadow",
-    "silver", "spider", "sunset", "tiger", "basket", "bridge", "candy",
-    "crown", "dream", "fairy", "magic", "pizza", "train", "water", "whale",
-    # extra school / food / adventure
+    "mother", "nature", "ocean", "panda", "pirate", "shadow", "silver",
+    "spider", "sunset", "tiger", "basket", "bridge", "candy", "crown",
+    "dream", "fairy", "magic", "pizza", "train", "water", "whale",
     "doctor", "farmer", "singer", "soccer", "tennis", "jungle", "island",
     "valley", "stream", "cloudy", "sunny", "pepper", "carrot", "potato",
-    "tomato", "orange", "grapes", "muffin", "waffle", "saddle", "helmet",
+    "tomato", "grapes", "muffin", "waffle", "saddle", "helmet",
 ]
 
-# ~45 seven–eight letter words (top mode — long-term players)
+# Seven–eight letter words (top mode)
 TOP_WORDS = [
     "kingdom", "morning", "evening", "holiday", "library", "kitchen", "bedroom",
     "outside", "diamond", "dolphin", "penguin", "chicken", "picture", "weather",
@@ -59,14 +57,25 @@ TOP_WORDS = [
     "harvest", "journey", "lantern", "mermaid", "octopus", "rooster", "treasure",
     "dinosaur", "elephant", "mountain", "sandwich", "birthday", "campfire",
     "hospital", "magazine", "sandals", "panther", "quarter",
-    # longer adventure / school
     "backpack", "baseball", "football", "notebook", "homework", "painting",
     "sunshine", "raincoat", "firefly", "seashell", "starfish", "volcano",
-    "treasure", "carnival", "festival", "princess", "wizardry", "cupcake",
+    "carnival", "festival", "princess", "wizardry", "cupcake",
 ]
 
-# Spoken English practice for adults (parents) — short everyday phrases
+# Family spoken English — grown-ups (and kids who unlock it)
 IMPOSSIBLE_PHRASES = [
+    "i love you",
+    "good night",
+    "sweet dreams",
+    "i am hungry",
+    "please help me",
+    "thank you mom",
+    "thank you dad",
+    "can we play",
+    "i am ready",
+    "let us go home",
+    "wash your hands",
+    "brush your teeth",
     "hello how are you",
     "good morning",
     "good afternoon",
@@ -76,7 +85,6 @@ IMPOSSIBLE_PHRASES = [
     "what is your name",
     "my name is",
     "where are you from",
-    "i am from",
     "how old are you",
     "can you help me",
     "please speak slowly",
@@ -99,8 +107,6 @@ IMPOSSIBLE_PHRASES = [
     "i am learning english",
     "please say that again",
     "what does this mean",
-    "i work every day",
-    "i go to the market",
     "the weather is nice",
     "it is very hot today",
     "it is raining outside",
@@ -109,32 +115,23 @@ IMPOSSIBLE_PHRASES = [
     "let us practice speaking",
     "please listen carefully",
     "i understand a little",
-    "can you help my english",
     "speak clearly please",
     "one more time please",
     "that sounds good",
-    "i agree with you",
     "what do you think",
-    "tell me about yourself",
-    "i live with my family",
     "this is my mother",
     "this is my father",
-    "how was work today",
-    "let us go home",
+    "i live with my family",
     "drive safely please",
     "call me later",
-    "i will call you",
-    "send me a message",
     "open the door please",
     "close the window",
     "turn on the light",
     "turn off the fan",
-    "wash your hands",
     "let us eat dinner",
     "the food is delicious",
     "i am full thank you",
     "have a good night",
-    "sweet dreams",
     "see you tomorrow",
     "happy birthday to you",
     "congratulations",
@@ -154,69 +151,73 @@ MODE_ORDER = ("easy", "normal", "hard", "top", "impossible")
 MODE_CONFIG = {
     "easy": {
         "label": "Easy",
-        "word_count": 10,
+        "word_count": 8,
         "letter_len": 3,
-        "points": 10,
+        "points": 20,
         "words": EASY_WORDS,
         "emoji": "🟢",
+        "hide_word": False,
     },
     "normal": {
         "label": "Normal",
-        "word_count": 10,
+        "word_count": 8,
         "letter_len": 4,
-        "points": 15,
+        "points": 35,
         "words": NORMAL_WORDS,
         "emoji": "🟡",
+        "hide_word": True,
     },
     "hard": {
         "label": "Hard",
-        "word_count": 12,
+        "word_count": 10,
         "letter_min": 5,
         "letter_max": 6,
-        "points": 20,
+        "points": 50,
         "words": HARD_WORDS,
         "emoji": "🔴",
+        "hide_word": True,
     },
     "top": {
         "label": "Top",
-        "word_count": 15,
+        "word_count": 10,
         "letter_min": 7,
         "letter_max": 8,
-        "points": 35,
+        "points": 80,
         "words": TOP_WORDS,
         "emoji": "💎",
+        "hide_word": True,
     },
     "impossible": {
-        "label": "Impossible",
-        "word_count": 10,
-        "points": 100,  # big reward for spoken English practice
+        "label": "Family",
+        "word_count": 8,
+        "points": 100,
         "words": IMPOSSIBLE_PHRASES,
-        "emoji": "🔥",
+        "emoji": "🗣️",
         "phrases": True,
         "speak_focus": True,
-        "blurb": "Adult spoken English — say full phrases out loud.",
+        "hide_word": False,
+        "blurb": "Grown-up spoken English — hear it, then say the phrase out loud.",
     },
 }
 
 WORD_EMOJI = {
-    # Easy (3-letter)
-    "cat": "🐱", "dog": "🐶", "bat": "🦇", "hat": "🎩", "mat": "🟩",
-    "rat": "🐀", "sat": "🪑", "cap": "🧢", "map": "🗺️", "tap": "🚰",
-    "lap": "🦵", "nap": "😴", "bag": "👜", "tag": "🏷️", "wag": "🐕",
-    "log": "🪵", "fog": "🌫️", "hog": "🐗", "big": "🐘", "pig": "🐷",
-    "dig": "⛏️", "fig": "🫐", "run": "🏃", "fun": "😄", "sun": "☀️",
+    # Easy
+    "cat": "🐱", "dog": "🐶", "bat": "🦇", "hat": "🎩", "rat": "🐀",
+    "cap": "🧢", "map": "🗺️", "bag": "👜", "pig": "🐷", "sun": "☀️",
     "bun": "🍞", "cup": "☕", "pup": "🐶", "bus": "🚌", "jam": "🍓",
-    "can": "🥫", "fan": "🪭", "pan": "🍳", "van": "🚐", "bed": "🛏️",
-    "red": "🔴", "fed": "🍽️", "pen": "🖊️", "hen": "🐔", "ten": "🔟",
-    "box": "📦", "fox": "🦊", "six": "6️⃣", "key": "🔑", "toy": "🧸",
-    "boy": "👦", "cow": "🐄", "bee": "🐝", "ear": "👂", "ice": "🧊",
-    "bug": "🐛", "mud": "🟤", "tub": "🛁", "rub": "🧽", "cub": "🐻",
-    "web": "🕸️", "egg": "🥚", "owl": "🦉", "ant": "🐜", "jet": "✈️",
-    "net": "🥅", "wet": "💧", "pet": "🐾", "get": "👋", "let": "✋",
-    "set": "🎯", "bet": "🎲", "dot": "⚫", "pot": "🍲", "hot": "🔥",
-    "lot": "📦", "not": "🚫", "got": "✅", "bit": "🦷", "fit": "💪",
-    "hit": "👊", "sit": "🪑", "zip": "🤐", "lip": "👄", "tip": "💡",
-    # Normal (4-letter)
+    "pan": "🍳", "van": "🚐", "bed": "🛏️", "pen": "🖊️", "hen": "🐔",
+    "box": "📦", "fox": "🦊", "key": "🔑", "toy": "🧸", "boy": "👦",
+    "cow": "🐄", "bee": "🐝", "ear": "👂", "ice": "🧊", "bug": "🐛",
+    "mud": "🟤", "tub": "🛁", "cub": "🐻", "web": "🕸️", "egg": "🥚",
+    "owl": "🦉", "ant": "🐜", "jet": "✈️", "net": "🥅", "pet": "🐾",
+    "pot": "🍲", "hot": "🔥", "zip": "🤐", "lip": "👄", "pie": "🥧",
+    "ham": "🍖", "nut": "🥜", "pea": "🟢", "tea": "🍵", "mug": "☕",
+    "jar": "🫙", "lid": "🫙", "rug": "🧶", "sky": "🌌", "sea": "🌊",
+    "yam": "🍠", "gum": "🫧", "hop": "🦘", "top": "🔝", "mop": "🧹",
+    "mom": "👩", "dad": "👨", "kid": "🧒", "arm": "💪", "leg": "🦵",
+    "toe": "🦶", "eye": "👁️", "car": "🚗", "fan": "🪭", "can": "🥫",
+    "red": "🔴", "ten": "🔟", "six": "6️⃣",
+    # Normal
     "book": "📖", "ball": "⚽", "bird": "🐦", "fish": "🐟", "frog": "🐸",
     "duck": "🦆", "lion": "🦁", "bear": "🐻", "goat": "🐐", "lamb": "🐑",
     "milk": "🥛", "cake": "🎂", "rice": "🍚", "corn": "🌽", "pear": "🍐",
@@ -229,10 +230,15 @@ WORD_EMOJI = {
     "pink": "💗", "kite": "🪁", "doll": "🪆", "sock": "🧦", "toys": "🧸",
     "baby": "👶", "bell": "🔔", "belt": "👔", "coat": "🧥", "cold": "🥶",
     "farm": "🚜", "fire": "🔥", "flag": "🚩", "game": "🎮", "gift": "🎁",
-    "gold": "🥇", "hill": "⛰️", "hope": "🌟", "king": "👑", "lake": "🏞️",
-    "love": "❤️", "nest": "🪺", "note": "📝", "open": "📂", "path": "🛤️",
-    "pool": "🏊", "ring": "💍", "sand": "🏖️", "snow": "❄️", "soft": "🧸",
-    "swim": "🏊", "tail": "🐕", "town": "🏘️", "wall": "🧱", "warm": "☀️",
+    "gold": "🥇", "hill": "⛰️", "king": "👑", "lake": "🏞️", "love": "❤️",
+    "nest": "🪺", "note": "📝", "open": "📂", "path": "🛤️", "pool": "🏊",
+    "ring": "💍", "sand": "🏖️", "snow": "❄️", "swim": "🏊", "tail": "🐕",
+    "town": "🏘️", "wall": "🧱", "warm": "☀️", "lamp": "💡", "fork": "🍴",
+    "soup": "🍲", "meat": "🥩", "bean": "🫘", "chip": "🍟", "soda": "🥤",
+    "wolf": "🐺", "deer": "🦌", "crab": "🦀", "seal": "🦭", "pony": "🐴",
+    "crow": "🐦", "dove": "🕊️", "beak": "🐤", "wing": "🪶", "claw": "🐾",
+    "desk": "🪑", "glue": "🧴", "clip": "📎", "tape": "📏", "song": "🎵",
+    "band": "🎸", "drum": "🥁", "horn": "📯", "soap": "🧼",
     # Hard
     "apple": "🍎", "flower": "🌸", "banana": "🍌", "rocket": "🚀",
     "purple": "🟣", "yellow": "💛", "orange": "🍊", "garden": "🌻",
@@ -244,11 +250,16 @@ WORD_EMOJI = {
     "butter": "🧈", "castle": "🏰", "candle": "🕯️", "cookie": "🍪",
     "dancer": "💃", "forest": "🌲", "market": "🏪", "mother": "👩",
     "nature": "🌿", "ocean": "🌊", "panda": "🐼", "pirate": "🏴‍☠️",
-    "rainbow": "🌈", "shadow": "🌑", "silver": "🥈", "spider": "🕷️",
-    "sunset": "🌅", "tiger": "🐯", "basket": "🧺", "bridge": "🌉",
-    "candy": "🍬", "crown": "👑", "dream": "💭", "fairy": "🧚",
-    "magic": "✨", "pizza": "🍕", "train": "🚂", "water": "💧", "whale": "🐋",
-    # Top (7–8 letter)
+    "shadow": "🌑", "silver": "🥈", "spider": "🕷️", "sunset": "🌅",
+    "tiger": "🐯", "basket": "🧺", "bridge": "🌉", "candy": "🍬",
+    "crown": "👑", "dream": "💭", "fairy": "🧚", "magic": "✨",
+    "pizza": "🍕", "train": "🚂", "water": "💧", "whale": "🐋",
+    "doctor": "🩺", "farmer": "🚜", "singer": "🎤", "soccer": "⚽",
+    "tennis": "🎾", "jungle": "🌴", "island": "🏝️", "valley": "🏞️",
+    "stream": "🏞️", "cloudy": "☁️", "sunny": "☀️", "pepper": "🌶️",
+    "carrot": "🥕", "potato": "🥔", "tomato": "🍅", "grapes": "🍇",
+    "muffin": "🧁", "waffle": "🧇", "saddle": "🐴", "helmet": "🪖",
+    # Top
     "kingdom": "🏰", "morning": "🌅", "evening": "🌆", "holiday": "🎉",
     "library": "📚", "kitchen": "🍳", "bedroom": "🛏️", "outside": "🌳",
     "diamond": "💎", "dolphin": "🐬", "penguin": "🐧", "chicken": "🐔",
@@ -260,15 +271,30 @@ WORD_EMOJI = {
     "octopus": "🐙", "rooster": "🐓", "treasure": "💰", "dinosaur": "🦕",
     "elephant": "🐘", "mountain": "⛰️", "sandwich": "🥪", "birthday": "🎂",
     "campfire": "🔥", "hospital": "🏥", "magazine": "📰", "sandals": "🩴",
-    "panther": "🐆", "quarter": "🪙",
+    "panther": "🐆", "quarter": "🪙", "backpack": "🎒", "baseball": "⚾",
+    "football": "🏈", "notebook": "📓", "homework": "📝", "painting": "🎨",
+    "sunshine": "☀️", "raincoat": "🧥", "firefly": "✨", "seashell": "🐚",
+    "starfish": "⭐", "volcano": "🌋", "carnival": "🎡", "festival": "🎉",
+    "princess": "👸", "wizardry": "🧙", "cupcake": "🧁",
 }
+
+
+def _unique(seq: list[str]) -> list[str]:
+    seen = set()
+    out = []
+    for item in seq:
+        key = str(item).lower().strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
 
 
 def _pool_for_mode(mode: str) -> list[str]:
     """Words/phrases allowed for this mode."""
     cfg = MODE_CONFIG[mode]
-    raw = [w.lower().strip() for w in cfg["words"] if w and str(w).strip()]
-    # Spoken-English phrase mode (Impossible): keep full phrases
+    raw = _unique([w for w in cfg["words"] if w and str(w).strip()])
     if cfg.get("phrases"):
         return raw
     if "letter_min" in cfg:
@@ -306,21 +332,24 @@ def word_hint(word: str) -> str:
     key = word.lower().strip()
     if key in WORD_EMOJI:
         return WORD_EMOJI[key]
-    # Phrase mode: use a speaking mic emoji
     if " " in key:
         return "🗣️"
     return "✨"
 
 
+def _letter_indexes(word: str) -> list[int]:
+    return [i for i, ch in enumerate(word) if ch.isalpha()]
+
+
 def get_quiz_questions(mode: str, num_choices: int = 4) -> list[dict]:
     """
     Fill-in-the-blank quiz: one letter is missing from the word.
-    Each item:
-      word, hint, blank_index, missing (letter), display (list of letters with '' for blank),
-      choices (letter options including the correct one).
+    Phrase modes are not used for quiz (see app routes).
     """
     if mode not in MODE_CONFIG:
         raise ValueError(f"Unknown mode: {mode}")
+    if MODE_CONFIG[mode].get("phrases"):
+        return []
     pool = _pool_for_mode(mode)
     if not pool:
         raise ValueError(f"No valid words for mode: {mode}")
@@ -333,11 +362,11 @@ def get_quiz_questions(mode: str, num_choices: int = 4) -> list[dict]:
     questions = []
     for word in targets:
         word = word.lower()
-        # Prefer blanking a middle letter when possible (easier for kids).
-        if len(word) >= 3:
-            blank_index = random.randint(1, len(word) - 2)
+        letters = _letter_indexes(word)
+        if len(letters) >= 3:
+            blank_index = random.choice(letters[1:-1])
         else:
-            blank_index = random.randint(0, len(word) - 1)
+            blank_index = letters[0] if letters else 0
 
         missing = word[blank_index]
         display = list(word)
@@ -365,11 +394,13 @@ def get_quiz_questions(mode: str, num_choices: int = 4) -> list[dict]:
 def get_picture_quiz_questions(mode: str, num_choices: int = 4) -> list[dict]:
     """
     Picture quiz: show emoji, pick the correct word from choices.
-    Each item: {word, hint, choices, quiz_type: 'picture'}
+    Skips words with no real picture. Phrase modes return no questions.
     """
     if mode not in MODE_CONFIG:
         raise ValueError(f"Unknown mode: {mode}")
-    pool = _pool_for_mode(mode)
+    if MODE_CONFIG[mode].get("phrases"):
+        return []
+    pool = [w for w in _pool_for_mode(mode) if w in WORD_EMOJI]
     if not pool:
         raise ValueError(f"No valid words for mode: {mode}")
 
