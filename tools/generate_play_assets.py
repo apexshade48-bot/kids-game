@@ -60,6 +60,7 @@ def main() -> None:
     PLAY.mkdir(parents=True, exist_ok=True)
     app_icon(192).save(ICONS / "icon-192.png")
     app_icon(512).save(ICONS / "icon-512.png")
+    app_icon(512).save(PLAY / "icon-512.png")
     feature_graphic().save(PLAY / "feature-graphic.png")
     print("Wrote icons and feature graphic.")
 

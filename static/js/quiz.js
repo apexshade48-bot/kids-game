@@ -15,6 +15,68 @@
 
   const sfx = window.WordStarsSFX || null;
 
+  function ping(el, cls) {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+
+  function askLikeThen(word, nextFn) {
+    var bar = document.getElementById("like-bar");
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      if (bar) bar.classList.add("hidden");
+      nextFn();
+    }
+    if (!bar || !word) {
+      window.setTimeout(finish, 400);
+      return;
+    }
+    bar.classList.remove("hidden");
+    ping(bar, "pop-in");
+    bar.querySelectorAll("[data-like]").forEach(function (btn) {
+      btn.onclick = function () {
+        var liked = btn.getAttribute("data-like") === "1";
+        fetch("/api/word-like", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ word: word, liked: liked }),
+        }).catch(function () {});
+        if (liked) burst(document.querySelector(".word-stage"));
+        finish();
+      };
+    });
+    window.setTimeout(finish, 7000);
+  }
+
+  function burst(host) {
+    if (!host) return;
+    var bits = ["⭐", "✨", "🎉", "💛"];
+    var i;
+    for (i = 0; i < 8; i++) {
+      (function (n) {
+        var s = document.createElement("span");
+        s.className = "fx-star";
+        s.textContent = bits[n % bits.length];
+        s.style.setProperty("--dx", Math.round(Math.random() * 180 - 90) + "px");
+        s.style.setProperty("--dy", Math.round(-24 - Math.random() * 90) + "px");
+        s.style.setProperty("--rot", Math.round(Math.random() * 70 - 35) + "deg");
+        host.appendChild(s);
+        window.setTimeout(function () {
+          if (s.parentNode) s.parentNode.removeChild(s);
+        }, 850);
+      })(i);
+    }
+  }
+
   async function parseJsonResponse(res) {
     const text = await res.text();
     try {
@@ -92,14 +154,25 @@
     busy = false;
     els.feedback.textContent = "";
     els.feedback.className = "feedback";
+    var likeBar = document.getElementById("like-bar");
+    if (likeBar) likeBar.classList.add("hidden");
     els.hint.textContent = q.hint || "✨";
+    ping(els.hint, "word-in");
+    ping(els.blankWord, "word-in");
+    ping(els.choices, "choices-in");
     els.progress.textContent = index + 1 + " / " + questions.length;
     els.score.textContent = "⭐ " + roundPoints;
 
     if (els.prompt) {
-      els.prompt.textContent = isPicture()
-        ? "Which word matches the picture?"
-        : "One letter is missing — tap the right letter!";
+      if (mode === "letters" && isPicture()) {
+        els.prompt.textContent = "Which letter matches the picture?";
+      } else if (isPicture()) {
+        els.prompt.textContent = "Which word matches the picture?";
+      } else if (mode === "letters") {
+        els.prompt.textContent = "Tap the first letter of the word!";
+      } else {
+        els.prompt.textContent = "One letter is missing — tap the right letter!";
+      }
     }
 
     renderBlankWord(q, null);
@@ -115,9 +188,10 @@
       btn.className = isPicture()
         ? "quiz-choice quiz-word-btn"
         : "quiz-choice quiz-letter-btn";
-      btn.textContent = isPicture()
-        ? String(choice)
-        : String(choice).toUpperCase();
+      btn.textContent =
+        isPicture() && mode !== "letters"
+          ? String(choice)
+          : String(choice).toUpperCase();
       btn.dataset.answer = String(choice).toLowerCase();
       btn.addEventListener("click", function () {
         pickAnswer(choice, btn);
@@ -136,7 +210,11 @@
           "X-Requested-With": "XMLHttpRequest",
         },
         credentials: "same-origin",
-        body: JSON.stringify({ mode: mode, points: pointsPerWord }),
+        body: JSON.stringify({
+          mode: mode,
+          points: pointsPerWord,
+          word: (current() && current().word) || "",
+        }),
       });
       const data = await parseJsonResponse(res);
       if (!res.ok) {
@@ -196,32 +274,57 @@
         " 🪙";
       els.feedback.className = "feedback ok";
       if (btn) btn.classList.add("is-correct");
-      els.hint.classList.add("celebrate");
+      ping(els.hint, "celebrate");
+      ping(els.score, "score-pop");
+      ping(els.feedback, "pop-in");
+      var stage = document.querySelector(".word-stage");
+      if (stage) {
+        stage.classList.add("is-win");
+        burst(stage);
+        window.setTimeout(function () {
+          stage.classList.remove("is-win");
+        }, 700);
+      }
       if (sfx && sfx.correct) sfx.correct();
-      await awardPoints();
+      awardPoints();
     } else {
       if (!isPicture()) renderBlankWord(q, want);
       els.feedback.textContent =
         "Almost! The answer is " + fullWord + ".";
       els.feedback.className = "feedback bad";
       if (btn) btn.classList.add("is-wrong");
+      ping(els.hint, "shake");
+      ping(els.choices, "shake");
+      if (window.WordStarsStop) {
+        window.WordStarsStop.reportMistake(q.word || "", got);
+      }
       if (sfx && sfx.wrong) sfx.wrong();
     }
 
-    setTimeout(function () {
+    function goNext() {
       els.hint.classList.remove("celebrate");
+      if (els.score) els.score.classList.remove("score-pop");
       index += 1;
       if (index >= questions.length) {
         finishQuiz();
       } else {
         showQuestion();
       }
-    }, 1200);
+    }
+    if (got === want) {
+      window.setTimeout(function () {
+        askLikeThen(q.word, goNext);
+      }, 500);
+    } else {
+      window.setTimeout(goNext, 1100);
+    }
   }
 
   function finishQuiz() {
     els.panel.classList.add("hidden");
     els.done.classList.remove("hidden");
+    ping(els.done, "win-in");
+    burst(els.done);
     if (sfx && sfx.win) sfx.win();
     els.summary.textContent =
       "You got " +

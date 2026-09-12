@@ -8,15 +8,13 @@
   }
 
   function setAppHeight() {
-    var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    /* innerHeight, not visualViewport — keyboard must not squash the whole app */
+    var h = window.innerHeight;
     document.documentElement.style.setProperty("--app-height", h + "px");
   }
 
   setAppHeight();
   window.addEventListener("resize", setAppHeight);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", setAppHeight);
-  }
 
   window.addEventListener("online", function () {
     document.documentElement.classList.remove("is-offline");

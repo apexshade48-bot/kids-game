@@ -8,6 +8,14 @@
     "candy",
     "night",
     "aura",
+    "rainbow",
+    "beach",
+    "snow",
+    "meadow",
+    "lemon",
+    "bubble",
+    "lava",
+    "galaxy",
   ];
 
   function apply(theme, opts) {
@@ -28,13 +36,21 @@
 
     var meta = document.querySelector('meta[name="theme-color"]');
     var colors = {
-      violet: "#f8fafc",
-      ocean: "#ecfeff",
-      forest: "#f0fdf4",
-      sunset: "#fff7ed",
-      candy: "#fdf2f8",
+      violet: "#c4b5fd",
+      ocean: "#7dd3fc",
+      forest: "#86efac",
+      sunset: "#fb923c",
+      candy: "#f9a8d4",
       night: "#0f172a",
       aura: "#1a0533",
+      rainbow: "#fde68a",
+      beach: "#38bdf8",
+      snow: "#e0f2fe",
+      meadow: "#86efac",
+      lemon: "#fde047",
+      bubble: "#67e8f9",
+      lava: "#fb7185",
+      galaxy: "#1e1b4b",
     };
     if (meta) meta.setAttribute("content", colors[theme] || colors.violet);
 

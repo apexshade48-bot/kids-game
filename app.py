@@ -18,22 +18,30 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
 
 import database as db
+import mailer
+import ollama_teacher
 from network import DEFAULT_PORT, get_device_urls
 from words import (
     MODE_CONFIG,
     MODE_ORDER,
     get_picture_quiz_questions,
     get_quiz_questions,
+    get_round_items,
     get_round_words,
+    pick_space_word,
+    speak_prompt,
     word_hint,
+    word_of_the_day,
+    daily_talk_items,
 )
 
-APP_VERSION = "6.6"
+APP_VERSION = "9.0"
 PORT = int(os.environ.get("PORT", DEFAULT_PORT))
 DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "0").lower() in ("1", "true", "yes")
@@ -62,6 +70,55 @@ def login_required():
     return "user_id" in session
 
 
+def _play_session() -> dict:
+    uid = session.get("user_id")
+    if not uid:
+        return {}
+    data = db.get_play_session(uid)
+    if not data:
+        from datetime import datetime
+        data = {
+            "user_id": uid,
+            "coins": 0,
+            "learned": [],
+            "mistakes": [],
+            "started": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        db.save_play_session(uid, data)
+    return data
+
+
+def _session_learn(word: str, coins: int = 0) -> None:
+    uid = session.get("user_id")
+    if not uid:
+        return
+    data = _play_session()
+    data["coins"] = int(data.get("coins") or 0) + max(0, int(coins or 0))
+    w = (word or "").strip().lower()
+    learned = list(data.get("learned") or [])
+    if w and w not in learned and len(learned) < 40:
+        learned.append(w)
+        data["learned"] = learned
+    db.save_play_session(uid, data)
+
+
+def _session_mistake(word: str, guess: str = "") -> None:
+    uid = session.get("user_id")
+    if not uid:
+        return
+    data = _play_session()
+    mistakes = list(data.get("mistakes") or [])
+    if len(mistakes) < 40:
+        mistakes.append(
+            {
+                "word": (word or "").strip().lower()[:48],
+                "guess": (guess or "").strip().lower()[:48],
+            }
+        )
+        data["mistakes"] = mistakes
+    db.save_play_session(uid, data)
+
+
 @app.before_request
 def ensure_db():
     if not getattr(app, "_db_ready", False):
@@ -81,15 +138,26 @@ def ensure_db():
                 ep = request.endpoint or ""
                 allowed = {
                     "choose_aura",
+                    "settings_page",
+                    "more_page",
+                    "teacher_page",
+                    "api_teacher",
                     "logout",
                     "static",
                     "healthz",
                     "devices_help",
                     "api_set_aura",
                     "privacy",
+                    "parent_sheet",
+                    "api_play_stop",
+                    "api_play_mistake",
                     "assetlinks",
                 }
-                if ep not in allowed and not str(request.path).startswith("/static"):
+                if (
+                    ep not in allowed
+                    and not str(request.path).startswith("/static")
+                    and not str(request.path).startswith("/api/")
+                ):
                     return redirect(url_for("choose_aura"))
 
 
@@ -106,6 +174,7 @@ def inject_globals():
         "user_aura": None,
         "aura_choices": db.AURA_CHOICES,
         "avatar": None,
+        "parent_email": None,
     }
     if "user_id" in session:
         base["wallet"] = db.get_user_wallet(session["user_id"])
@@ -116,6 +185,7 @@ def inject_globals():
         aura = session.get("aura") or db.get_user_aura(session["user_id"])
         base["user_aura"] = aura
         base["avatar"] = db.get_avatar(session["user_id"])
+        base["parent_email"] = db.get_parent_email(session["user_id"])
         if aura:
             session["aura"] = aura
     return base
@@ -219,6 +289,14 @@ def healthz():
     return jsonify({"ok": True, "version": APP_VERSION}), 200
 
 
+@app.route("/sw.js")
+def service_worker():
+    resp = send_from_directory(app.static_folder, "sw.js", mimetype="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
@@ -261,7 +339,10 @@ def signup():
         name = request.form.get("name", "")
         password = request.form.get("password", "")
         aura = request.form.get("aura", "")
-        ok, result = db.create_user(name, password, aura=aura)
+        parent_email = request.form.get("parent_email", "")
+        ok, result = db.create_user(
+            name, password, aura=aura, parent_email=parent_email
+        )
         if not ok:
             flash(str(result), "error")
             return render_template(
@@ -269,6 +350,7 @@ def signup():
                 tab="signup",
                 name=name,
                 selected_aura=aura,
+                parent_email=parent_email,
                 aura_choices=db.AURA_CHOICES,
             )
         session["user_id"] = result
@@ -355,6 +437,57 @@ def api_set_aura():
     return jsonify({"ok": True, "aura": result})
 
 
+@app.route("/teacher")
+def teacher_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    return render_template(
+        "teacher.html",
+        name=session.get("user_name", "Friend"),
+        teacher_ready=ollama_teacher.ping(),
+        teacher_model=ollama_teacher.DEFAULT_MODEL,
+        word=(request.args.get("word") or "").strip().lower()[:48],
+    )
+
+
+@app.route("/api/teacher", methods=["POST"])
+def api_teacher():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or data.get("message") or "").strip()
+    word = (data.get("word") or "").strip().lower()[:48]
+    history = data.get("history") if isinstance(data.get("history"), list) else []
+    ok, reply = ollama_teacher.ask(text, word=word, history=history)
+    if not ok:
+        return jsonify({"ok": False, "error": reply}), 503
+    return jsonify({"ok": True, "reply": reply})
+
+
+@app.route("/more")
+def more_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    return render_template(
+        "more.html",
+        name=session.get("user_name", "Friend"),
+        parent_email=db.get_parent_email(session["user_id"]),
+    )
+
+
+@app.route("/settings")
+def settings_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    return render_template(
+        "settings.html",
+        name=session.get("user_name", "Friend"),
+        aura_choices=db.AURA_CHOICES,
+        selected_aura=session.get("aura") or db.get_user_aura(session["user_id"]) or "violet",
+        parent_email=db.get_parent_email(session["user_id"]),
+    )
+
+
 @app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
@@ -367,6 +500,7 @@ def home():
         return redirect(url_for("login"))
     if not db.get_user_aura(session["user_id"]):
         return redirect(url_for("choose_aura"))
+    db.refresh_badges(session["user_id"])
     scores = db.get_user_scores(session["user_id"])
     streak_bonus = db.claim_streak_bonus(session["user_id"])
     wallet = db.get_user_wallet(session["user_id"])
@@ -390,6 +524,18 @@ def home():
         spin=spin,
         streak_bonus=streak_bonus,
         avatar=db.get_avatar(session["user_id"]),
+        play_now_mode="letters",
+        aura_choices=db.AURA_CHOICES,
+        free_modes=db.FREE_MODES,
+        favorites=[
+            {"word": w, "hint": word_hint(w)}
+            for w in db.get_word_likes(session["user_id"])["liked"][:12]
+        ],
+        wotd=word_of_the_day(),
+        daily_done=db.daily_word_done(session["user_id"]),
+        badges=db.get_user_badges(session["user_id"]),
+        talk_preview=daily_talk_items()[:3],
+        teacher_ready=ollama_teacher.ping(),
     )
 
 
@@ -423,10 +569,126 @@ def api_shop_buy():
 def space_run():
     if not login_required():
         return redirect(url_for("login"))
+    payload = pick_space_word(db.get_review_words(session["user_id"], "easy"))
     return render_template(
         "space.html",
         name=session.get("user_name", "Friend"),
         avatar=db.get_avatar(session["user_id"]),
+        space=payload,
+        score_url=url_for("api_score"),
+        next_word_url=url_for("api_space_word"),
+    )
+
+
+@app.route("/api/space-word")
+def api_space_word():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    payload = pick_space_word(db.get_review_words(session["user_id"], "easy"))
+    return jsonify({"ok": True, **payload})
+
+
+@app.route("/parent", methods=["GET", "POST"])
+def parent_sheet():
+    if not login_required():
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    if request.method == "POST":
+        ok, result = db.set_parent_email(uid, request.form.get("parent_email", ""))
+        if not ok:
+            flash(str(result), "error")
+        else:
+            flash("Parent email saved.", "success")
+            uid = session["user_id"]
+            pending = db.get_play_session(uid)
+            if result and pending and (
+                pending.get("learned") or pending.get("mistakes") or pending.get("coins")
+            ):
+                sent, msg = mailer.send_parent_stop_email(
+                    result,
+                    session.get("user_name", "Your child"),
+                    int(pending.get("coins") or 0),
+                    list(pending.get("learned") or []),
+                    list(pending.get("mistakes") or []),
+                    pending.get("started"),
+                    log_dir=db.DB_PATH.parent,
+                )
+                flash(msg, "success" if sent else "error")
+                if sent:
+                    db.clear_play_session(uid)
+        return redirect(url_for("parent_sheet"))
+    return render_template(
+        "parent.html",
+        name=session.get("user_name", "Friend"),
+        scores=db.get_user_scores(uid),
+        progress=db.get_user_progress(uid),
+        wallet=db.get_user_wallet(uid),
+        recent=db.get_recent_review_words(uid),
+        modes=MODE_CONFIG,
+        mode_order=MODE_ORDER,
+        parent_email=db.get_parent_email(uid),
+        likes=db.get_word_likes(uid),
+    )
+
+
+@app.route("/api/word-like", methods=["POST"])
+def api_word_like():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    word = (data.get("word") or "").strip().lower()
+    liked = data.get("liked")
+    if liked is None:
+        return jsonify({"error": "Missing like"}), 400
+    db.set_word_like(session["user_id"], word, bool(liked))
+    if liked:
+        db.grant_badge(session["user_id"], "heart")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/play-mistake", methods=["POST"])
+def api_play_mistake():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    _session_mistake(data.get("word") or "", data.get("guess") or "")
+    db.log_activity(session["user_id"], correct=0, attempts=1, coins_earned=0)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/play-stop", methods=["POST"])
+def api_play_stop():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    uid = session["user_id"]
+    email = db.get_parent_email(uid)
+    if not email:
+        return jsonify(
+            {
+                "ok": False,
+                "need_email": True,
+                "error": "Ask a grown-up to add their email on the Parent page.",
+                "redirect": url_for("parent_sheet"),
+            }
+        ), 400
+    data = _play_session()
+    sent, msg = mailer.send_parent_stop_email(
+        email,
+        session.get("user_name", "Your child"),
+        int(data.get("coins") or 0),
+        list(data.get("learned") or []),
+        list(data.get("mistakes") or []),
+        data.get("started"),
+        log_dir=db.DB_PATH.parent,
+    )
+    db.clear_play_session(uid)
+    return jsonify(
+        {
+            "ok": True,
+            "emailed": sent,
+            "message": msg,
+            "redirect": url_for("home"),
+        }
     )
 
 
@@ -565,8 +827,43 @@ def play(mode):
     if err:
         return err
 
-    words = get_round_words(mode)
-    round_data = [{"word": w, "hint": word_hint(w)} for w in words]
+    likes = db.get_word_likes(session["user_id"])
+    pack = (request.args.get("pack") or "").strip().lower()
+    round_data = get_round_items(
+        mode,
+        db.get_review_words(session["user_id"], mode),
+        likes["liked"],
+        likes["disliked"],
+    )
+    if pack == "likes" and likes["liked"]:
+        fav = [
+            w
+            for w in likes["liked"]
+            if (mode == "letters" and len(w) == 1) or len(w.replace(" ", "")) >= 2
+        ][:8]
+        if fav:
+            round_data = [
+                {
+                    "word": w,
+                    "hint": word_hint(w, mode),
+                    "speak": speak_prompt(w, mode),
+                }
+                for w in fav
+            ]
+            cfg = {**cfg, "label": "Favorites"}
+    elif pack == "daily":
+        daily = word_of_the_day()
+        rest = [it for it in round_data if it["word"] != daily["word"]]
+        round_data = [daily] + rest[: max(0, cfg["word_count"] - 1)]
+    elif pack == "talk":
+        round_data = daily_talk_items()
+        cfg = {
+            **cfg,
+            "label": "Daily Talk",
+            "speak_focus": True,
+            "hide_word": False,
+            "blurb": "Hear the phrase, then say it out loud.",
+        }
     hide_word = bool(cfg.get("hide_word")) and not cfg.get("phrases")
     return render_template(
         "play.html",
@@ -594,7 +891,13 @@ def quiz(mode):
         flash("Family Speak is voice practice — use Speak, not Quiz.", "error")
         return redirect(url_for("play", mode=mode))
 
-    questions = get_quiz_questions(mode)
+    likes = db.get_word_likes(session["user_id"])
+    questions = get_quiz_questions(
+        mode,
+        review=db.get_review_words(session["user_id"], mode),
+        liked=likes["liked"],
+        disliked=likes["disliked"],
+    )
     return render_template(
         "quiz.html",
         mode=mode,
@@ -618,7 +921,13 @@ def pics_quiz(mode):
         flash("Family Speak is voice practice — use Speak, not Pics.", "error")
         return redirect(url_for("play", mode=mode))
 
-    questions = get_picture_quiz_questions(mode)
+    likes = db.get_word_likes(session["user_id"])
+    questions = get_picture_quiz_questions(
+        mode,
+        review=db.get_review_words(session["user_id"], mode),
+        liked=likes["liked"],
+        disliked=likes["disliked"],
+    )
     return render_template(
         "quiz.html",
         mode=mode,
@@ -687,7 +996,32 @@ def api_score():
 
     total = db.add_points(session["user_id"], mode, points)
     coins = db.add_coins(session["user_id"], points)
-    return jsonify({"ok": True, "total": total, "coins": coins, "mode": mode})
+    word = (data.get("word") or "").strip().lower()[:48]
+    extra = 0
+    if word:
+        db.record_review_word(session["user_id"], mode, word)
+        _session_learn(word, points)
+        if word == word_of_the_day()["word"] and db.claim_daily_word(
+            session["user_id"], word
+        ):
+            extra = 15
+            coins = db.add_coins(session["user_id"], extra)
+            db.grant_badge(session["user_id"], "daily")
+            _session_learn("", extra)
+        if data.get("from") == "space":
+            db.grant_badge(session["user_id"], "space")
+    else:
+        _session_learn("", points)
+    db.refresh_badges(session["user_id"])
+    return jsonify(
+        {
+            "ok": True,
+            "total": total,
+            "coins": coins,
+            "mode": mode,
+            "daily_bonus": extra,
+        }
+    )
 
 
 @app.route("/api/unlock", methods=["POST"])
@@ -765,7 +1099,9 @@ def battle_setup():
             "p1_id": session["user_id"],
             "p2_name": p2,
             "mode": mode,
-            "words": [{"word": w, "hint": word_hint(w)} for w in words],
+            "words": [
+                {"word": w, "hint": word_hint(w, mode), "speak": w} for w in words
+            ],
             "index": 0,
             "turn": 1,  # 1 or 2
             "p1_score": 0,

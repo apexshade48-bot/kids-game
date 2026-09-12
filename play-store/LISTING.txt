@@ -1,0 +1,40 @@
+TITLE (max 30)
+Word Stars
+
+SHORT DESCRIPTION (max 80)
+Hear, say, and spell English words. Coins, stars, and a talking teacher.
+
+FULL DESCRIPTION
+Word Stars is a word game for families. Kids hear a word, say it, or type it, then earn coins and stars.
+
+Learn in order:
+Letters, Sounds, Beginner, Easy, Normal, Hard, Top, and Family talk.
+
+Also in the game:
+• Daily Talk — six everyday phrases
+• Word of the day
+• Spell, Quiz, and picture rounds
+• Space — catch letters and say the word
+• Shop clothes and a lucky spin
+• Offline Teacher (llama3.2 on the family PC, when Ollama is running)
+• Parent page — progress, likes, and a stop-play email
+
+No ads. No in-app purchases required to start (Easy and starter levels are free).
+
+The Android app opens your hosted Word Stars site (Trusted Web Activity). A parent or teacher should host the game at an HTTPS address.
+
+Privacy: https://YOUR-HOST/privacy
+
+CATEGORY
+Game → Educational
+
+TAGS
+words, spelling, kids, english, education, family
+
+CONTACT
+Use the parent email you set in the app, or the Play Console support email.
+
+GRAPHIC ASSETS
+Icon: play-store/icon-512.png  (or static/icons/icon-512.png)
+Feature graphic: play-store/feature-graphic.png  (1024 x 500)
+Phone screenshots: take 2+ from a real phone (Home, Spell, Shop)

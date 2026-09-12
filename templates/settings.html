@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Settings{% endblock %}
+{% block body_class %}page-settings{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-kicker">Settings</p>
+  <h1 class="big-title">Pick a background</h1>
+  <p class="subtitle">Tap a sky. It saves for {{ name }}.</p>
+</section>
+
+<section class="card section-card">
+  <div class="bg-picker" role="listbox" aria-label="Backgrounds">
+    {% for a in aura_choices %}
+    <button
+      type="button"
+      class="bg-option theme-swatch {% if selected_aura == a.id %}is-active{% endif %}"
+      data-theme="{{ a.id }}"
+      data-save-server="1"
+      title="{{ a.label }}"
+    >
+      <span class="bg-preview bg-preview-{{ a.id }}" aria-hidden="true">{{ a.emoji }}</span>
+      <span class="bg-option-label">{{ a.emoji }} {{ a.label }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  <p class="section-desc" id="bg-saved" hidden>Saved! This is your new sky.</p>
+</section>
+
+<section class="card section-card">
+  <h2>Parent email</h2>
+  <p class="section-desc">Used when the kid taps Stop.</p>
+  <a href="{{ url_for('parent_sheet') }}" class="btn btn-ghost">
+    {% if parent_email %}✉️ {{ parent_email }}{% else %}Add parent email{% endif %}
+  </a>
+</section>
+
+<p><a href="{{ url_for('home') }}" class="btn btn-primary">Back to Home</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".bg-option").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var note = document.getElementById("bg-saved");
+    if (note) {
+      note.hidden = false;
+    }
+  });
+});
+</script>
+{% endblock %}

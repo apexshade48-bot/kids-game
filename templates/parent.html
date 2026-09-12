@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "_name.html" import player_name %}
+{% block title %}Word Stars — Parent sheet{% endblock %}
+{% block body_class %}page-parent{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-kicker">For grown-ups</p>
+  <h1 class="big-title">Parent star sheet</h1>
+  <p class="subtitle">How {{ player_name(name, (avatar.name_style if avatar else 'plain'), session.get('user_id'), is_owner) }} practiced English.</p>
+</section>
+
+<section class="card section-card">
+  <h2>Parent email</h2>
+  <p class="section-desc">When the kid taps Stop, this email gets the review: new words, mistakes, and coins.</p>
+  <form method="post" action="{{ url_for('parent_sheet') }}" class="auth-form">
+    <label>
+      Email
+      <input type="email" name="parent_email" value="{{ parent_email or '' }}" maxlength="120" required autocomplete="email" placeholder="mom@email.com" />
+    </label>
+    <button type="submit" class="btn btn-primary">Save email</button>
+  </form>
+</section>
+
+<section class="home-stats home-stats-compact" aria-label="Today">
+  <div class="stat-card stat-coins">
+    <span class="stat-num">🪙 {{ wallet.coins }}</span>
+    <span class="stat-label">Coins</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">🔥 {{ progress.streak }}</span>
+    <span class="stat-label">Day streak</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ progress.today.correct }}</span>
+    <span class="stat-label">Today correct</span>
+  </div>
+</section>
+
+<section class="card section-card">
+  <h2>Today</h2>
+  <p class="section-desc">
+    {{ progress.today.correct }} right · {{ progress.today.attempts }} tries ·
+    🪙 {{ progress.today.coins_earned }} earned · {{ progress.week_correct }} this week
+  </p>
+</section>
+
+<section class="card section-card">
+  <h2>Stars by level</h2>
+  <div class="home-stats home-stats-modes">
+    {% for mode_key in mode_order %}
+    <div class="stat-card">
+      <span class="stat-num">{{ scores[mode_key] }}</span>
+      <span class="stat-label">{{ modes[mode_key].emoji }} {{ modes[mode_key].label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card section-card">
+  <h2>Words they like</h2>
+  {% if likes and likes.liked %}
+  <p class="section-desc">{{ likes.liked | join(', ') }}</p>
+  {% else %}
+  <p class="section-desc">No favorites yet. After a correct word they can tap ❤️.</p>
+  {% endif %}
+  <h2 style="margin-top:14px">Not this one</h2>
+  {% if likes and likes.disliked %}
+  <p class="section-desc">{{ likes.disliked | join(', ') }}</p>
+  {% else %}
+  <p class="section-desc">No skipped words yet.</p>
+  {% endif %}
+</section>
+
+<section class="card section-card">
+  <h2>Recent words</h2>
+  {% if recent %}
+  <ul class="parent-word-list">
+    {% for row in recent %}
+    <li>
+      <strong>{{ row.word }}</strong>
+      <span class="parent-word-meta">
+        {{ modes[row.mode].label if row.mode in modes else row.mode }}
+        · ×{{ row.hits }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="section-desc">No words saved yet. Play a round of Spell, Quiz, or Pics first.</p>
+  {% endif %}
+</section>
+
+<p class="section-desc">
+  <a href="{{ url_for('home') }}" class="btn btn-primary">Back to Home</a>
+</p>
+{% endblock %}

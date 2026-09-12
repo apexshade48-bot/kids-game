@@ -33,6 +33,13 @@
       <div id="quiz-hint" class="word-hint">✨</div>
       <div id="quiz-blank-word" class="quiz-blank-word" aria-label="Word with missing letter"></div>
       <p id="quiz-feedback" class="feedback" aria-live="assertive"></p>
+      <div id="like-bar" class="like-bar hidden">
+        <p class="like-ask">Do you like this word?</p>
+        <div class="like-actions">
+          <button type="button" class="btn like-yes" data-like="1">❤️ I like it</button>
+          <button type="button" class="btn like-no" data-like="0">🙈 Not this one</button>
+        </div>
+      </div>
     </div>
 
     <div id="quiz-choices" class="quiz-choices" role="group" aria-label="Answer choices"></div>
@@ -43,15 +50,15 @@
       <div class="done-emoji">🧠</div>
       <h2>Quiz complete</h2>
       <p id="quiz-summary" class="subtitle"></p>
+      <p class="subtitle stop-ask">Want to play more, or stop?</p>
       <div class="done-actions">
         {% if quiz_kind == 'picture' %}
-        <a href="{{ url_for('pics_quiz', mode=mode) }}" class="btn btn-primary">Pics again</a>
+        <a href="{{ url_for('pics_quiz', mode=mode) }}" class="btn btn-primary">▶ Play more</a>
         {% else %}
-        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-primary">Quiz again</a>
+        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-primary">▶ Play more</a>
         {% endif %}
-        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-ghost">Spell mode</a>
-        <a href="{{ url_for('home') }}" class="btn btn-ghost">Home</a>
-        <a href="{{ url_for('leaderboard', mode=mode) }}" class="btn btn-ghost">Leaderboard</a>
+        <button type="button" class="btn btn-ghost" data-stop-play>Stop</button>
+        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-ghost">Spell</a>
       </div>
     </div>
   </section>
@@ -60,5 +67,6 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/stop-play.js') }}?v={{ app_version }}"></script>
 <script src="{{ url_for('static', filename='js/quiz.js') }}?v={{ app_version }}"></script>
 {% endblock %}

@@ -5,24 +5,64 @@
 {% block body_class %}page-home{% endblock %}
 
 {% block content %}
-<section class="hero hero-with-avatar">
-  <a href="{{ url_for('player_profile', user_id=session.get('user_id')) }}" class="home-avatar-link r6-stage" title="Open your Apex ID">
+<section class="hero hero-with-avatar js-reveal">
+  <a href="{{ url_for('player_profile', user_id=session.get('user_id')) }}" class="home-avatar-link r6-stage js-float" title="Open your Apex ID">
     {{ player_avatar(avatar, 'md') }}
   </a>
   <div>
+    <p class="hero-kicker">English path</p>
     <h1 class="big-title">Hi, {{ player_name(name, avatar.name_style if avatar else 'plain', session.get('user_id'), is_owner) }}</h1>
-    <p class="subtitle">Tap Play — hear the word, then say it or type it.</p>
-    <div class="hero-avatar-actions">
-      <a href="{{ url_for('player_profile', user_id=session.get('user_id')) }}" class="btn btn-ghost btn-small">🪪 Apex ID</a>
-      <a href="{{ url_for('shop_page') }}" class="btn btn-ghost btn-small">👕 Change clothes</a>
-      <a href="{{ url_for('space_run') }}" class="btn btn-primary btn-small">🚀 Run in space</a>
-    </div>
+    <p class="subtitle">Hear it. Say it. Play.</p>
   </div>
 </section>
 
-<a href="{{ url_for('play', mode='easy') }}" class="btn btn-primary btn-play-now">▶ Play now</a>
+<a href="{{ url_for('play', mode=play_now_mode or 'letters') }}" class="btn btn-primary btn-play-now js-reveal">▶ Play Letters</a>
+<a href="{{ url_for('play', mode='beginner') }}?pack=talk" class="btn btn-ghost btn-play-now js-reveal">🗣️ Daily Talk (2 min)</a>
 
-<section class="home-stats home-stats-compact" aria-label="Your stats">
+{% if wotd %}
+<section class="card section-card wotd-card js-reveal">
+  <h2>🌞 Word of the day</h2>
+  <p class="wotd-big">{{ wotd.hint }} <strong>{{ wotd.word }}</strong></p>
+  {% if daily_done %}
+  <p class="section-desc">You already got today’s word. +15 bonus coins. Nice!</p>
+  {% else %}
+  <p class="section-desc">Say or type it for a +15 coin bonus.</p>
+  <a href="{{ url_for('play', mode='easy') }}?pack=daily" class="btn btn-primary">Play today’s word</a>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if badges %}
+<section class="card section-card js-reveal">
+  <h2>🏅 My stickers</h2>
+  <div class="badge-row">
+    {% for b in badges %}
+    <span class="kid-badge {% if b.earned %}is-on{% else %}is-off{% endif %}" title="{{ b.label }}">
+      <span class="kid-badge-emoji">{{ b.emoji }}</span>
+      <span class="kid-badge-label">{{ b.label }}</span>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if favorites %}
+<section class="card section-card fav-strip js-reveal">
+  <h2>❤️ Words I like</h2>
+  <p class="section-desc">You picked these. We will show them more.</p>
+  <p><a href="{{ url_for('play', mode='easy') }}?pack=likes" class="btn btn-ghost btn-small">▶ Play words I like</a></p>
+  <div class="fav-stickers">
+    {% for f in favorites %}
+    <span class="fav-sticker" title="{{ f.word }}">
+      <span class="fav-emoji">{{ f.hint }}</span>
+      <span class="fav-word">{{ f.word }}</span>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="home-stats home-stats-compact js-reveal" aria-label="Your stats">
   <div class="stat-card stat-coins">
     <span class="stat-num" id="coin-balance">{{ wallet.coins }}</span>
     <span class="stat-label">Coins</span>
@@ -37,46 +77,73 @@
   </div>
 </section>
 
-<p class="coin-hint">Play to earn coins. Unlock new levels. Hint in Spell costs 🪙 {{ hint_cost }}.</p>
+<p class="coin-hint js-reveal">Hear it. Say it. Type it. Hint in Spell costs 🪙 {{ hint_cost }}.</p>
 
-<section class="card section-card">
-  <h2>Game modes</h2>
+<nav class="path-chips js-reveal" aria-label="Learning path">
+  {% for mode_key in mode_order %}
+  {% set cfg = modes[mode_key] %}
+  <span class="path-chip {% if wallet.unlocked[mode_key] %}is-open{% else %}is-locked{% endif %}">
+    <span class="path-chip-n">{{ loop.index }}</span>
+    {{ cfg.emoji }} {{ cfg.label }}
+  </span>
+  {% if not loop.last %}<span class="path-arrow" aria-hidden="true">→</span>{% endif %}
+  {% endfor %}
+</nav>
+
+<section class="card section-card js-reveal">
+  <h2>Your English path</h2>
   <p class="section-desc">
-    <strong>Spell</strong> the word · <strong>Quiz</strong> missing letter · <strong>Pics</strong> match the picture.
+    <strong>Letters → Sounds → Beginner</strong> are free.
+    Then Easy words, then Family talk.
   </p>
 
-  <div class="mode-grid">
+  <div class="learn-path">
     {% for mode_key in mode_order %}
     {% set cfg = modes[mode_key] %}
     {% set is_unlocked = wallet.unlocked[mode_key] %}
     {% set cost = unlock_costs.get(mode_key) %}
     {% set is_phrases = cfg.phrases %}
+    {% set is_speak = cfg.speak_focus %}
 
     {% if is_unlocked %}
-    <div class="mode-card mode-{{ mode_key }} mode-card-actions">
+    <div class="mode-card mode-{{ mode_key }} mode-card-actions js-reveal" style="--i: {{ loop.index0 }}">
+      <span class="mode-step">{{ loop.index }}</span>
       <span class="mode-emoji">{{ cfg.emoji }}</span>
       <h2>{{ cfg.label }}</h2>
       <p>
         {% if is_phrases %}
         <strong>{{ cfg.word_count }}</strong> phrases · hear &amp; say
+        {% elif cfg.letter_label %}
+        <strong>{{ cfg.word_count }}</strong> · {{ cfg.letter_label }}
         {% else %}
         <strong>{{ cfg.word_count }}</strong> words ·
         {% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %} letters
         {% if cfg.hide_word %} · picture + hear it{% endif %}
         {% endif %}
       </p>
+      {% if cfg.blurb %}
+      <p class="mode-blurb">{{ cfg.blurb }}</p>
+      {% endif %}
       <div class="mode-meta">
-        {% if mode_key == 'easy' %}
+        {% if mode_key in free_modes %}
         <span class="mode-badge mode-badge-free">Free</span>
         {% endif %}
         {% if is_phrases %}
-        <span class="mode-badge" style="background:#ffedd5;color:#9a3412">Family</span>
+        <span class="mode-badge mode-badge-family">Talk</span>
+        {% elif is_speak %}
+        <span class="mode-badge mode-badge-speak">Say it</span>
         {% endif %}
         <span class="mode-pts">+{{ cfg.points }} coins each</span>
       </div>
       {% if is_phrases %}
       <div class="mode-actions">
         <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Speak</a>
+      </div>
+      {% elif is_speak %}
+      <div class="mode-actions mode-actions-3">
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Speak</a>
+        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Quiz</a>
+        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Pics</a>
       </div>
       {% else %}
       <div class="mode-actions mode-actions-3">
@@ -87,13 +154,16 @@
       {% endif %}
     </div>
     {% else %}
-    <div class="mode-card mode-{{ mode_key }} locked" data-mode="{{ mode_key }}" data-cost="{{ cost }}">
+    <div class="mode-card mode-{{ mode_key }} locked js-reveal" data-mode="{{ mode_key }}" data-cost="{{ cost }}" style="--i: {{ loop.index0 }}">
+      <span class="mode-step">{{ loop.index }}</span>
       <span class="mode-lock">🔒</span>
       <span class="mode-emoji">{{ cfg.emoji }}</span>
       <h2>{{ cfg.label }}</h2>
       <p>
         {% if is_phrases %}
         <strong>{{ cfg.word_count }}</strong> phrases · spoken English
+        {% elif cfg.letter_label %}
+        <strong>{{ cfg.word_count }}</strong> · {{ cfg.letter_label }}
         {% else %}
         <strong>{{ cfg.word_count }}</strong> words ·
         {% if 'letter_min' in cfg %}{{ cfg.letter_min }}–{{ cfg.letter_max }}{% else %}{{ cfg.letter_len }}{% endif %} letters

@@ -4,19 +4,58 @@
 {% block body_class %}page-space{% endblock %}
 
 {% block content %}
-<div class="space-scene" id="space-scene">
+<div
+  class="space-scene"
+  id="space-scene"
+  data-word="{{ space.word }}"
+  data-hint="{{ space.hint }}"
+  data-letters='{{ space.letters | tojson }}'
+  data-points="{{ space.points }}"
+  data-score-url="{{ score_url }}"
+  data-next-url="{{ next_word_url }}"
+>
   <div class="space-stars" id="space-stars"></div>
   <div class="space-stars space-stars-far" id="space-stars-far"></div>
   <div class="space-warp" id="space-warp"></div>
 
-  <p class="space-title">You are running in space</p>
+  <p class="space-title">Catch the letters, then say the word</p>
+  <p class="space-hud">
+    <span id="space-progress">0 / {{ space.letters|length }}</span>
+    · 🪙 <span id="space-coins">{{ wallet.coins if wallet else 0 }}</span>
+  </p>
 
   <div class="space-runner is-running" id="space-runner">
     {{ player_avatar(avatar, 'lg') }}
   </div>
 
-  <p class="space-hint" id="space-hint">Tap and hold to sprint 🚀</p>
+  <div id="space-tiles" class="space-tiles" aria-label="Letter tiles"></div>
+
+  <p class="space-hint" id="space-hint">Tap letters in order to build the word. Hold to sprint 🚀</p>
+
+  <div id="space-say" class="space-say hidden">
+    <div class="space-say-emoji" id="space-emoji">✨</div>
+    <p class="space-say-word" id="space-built"></p>
+    <input
+      type="text"
+      id="space-input"
+      class="mobile-input space-input"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      maxlength="12"
+      placeholder="Type or say the word"
+      aria-label="Type the word"
+    />
+    <div class="space-say-actions">
+      <button type="button" id="space-hear" class="btn btn-hear">🔊 Hear it</button>
+      <button type="button" id="space-mic" class="btn btn-mic">🎤 Say it</button>
+      <button type="button" id="space-check" class="btn btn-primary">✓ Check</button>
+    </div>
+    <p id="space-feedback" class="feedback" aria-live="assertive"></p>
+  </div>
+
   <div class="space-actions">
+    <button type="button" class="btn btn-ghost" data-stop-play>Stop</button>
     <a href="{{ url_for('shop_page') }}" class="btn btn-ghost">👕 Clothes</a>
     <a href="{{ url_for('home') }}" class="btn btn-ghost">🏠 Home</a>
   </div>
@@ -24,5 +63,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/stop-play.js') }}?v={{ app_version }}"></script>
 <script src="{{ url_for('static', filename='js/space.js') }}?v={{ app_version }}"></script>
 {% endblock %}

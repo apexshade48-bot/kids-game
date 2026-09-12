@@ -1,0 +1,63 @@
+HOW TO GIVE WORD STARS TO GOOGLE PLAY
+=====================================
+
+Google will not publish a Python folder. They need one file:
+
+  an Android App Bundle  →  .aab
+
+This PC does not have Java / Android Studio, so the .aab is not built yet.
+You make that file in Android Studio (free), then upload it.
+
+---------------------------------
+STEP 1 — Put the game on the internet
+---------------------------------
+Play testers must open your game from anywhere, not only your Wi-Fi.
+
+1. Deploy Word Stars with HTTPS (Render is fine — see DEPLOY_FREE.md).
+2. You get a link like:  https://word-stars.onrender.com
+3. Open that link on your phone. If the game works, continue.
+
+Edit this file and paste your link instead of YOUR-HOST:
+
+  play-store\android\app\src\main\res\values\strings.xml
+
+    <string name="game_url">https://YOUR-HOST</string>
+
+---------------------------------
+STEP 2 — Make the Play file (.aab)
+---------------------------------
+1. Install Android Studio: https://developer.android.com/studio
+2. Open folder:  play-store\android
+3. Wait until Gradle finishes (first time is slow).
+4. Menu:  Build  →  Generate Signed App Bundle / APK
+5. Choose  Android App Bundle
+6. Create a new keystore (save the password in a safe place — you need it forever).
+7. Finish. You get:
+
+     app\release\app-release.aab
+
+THAT is the file you give Google.
+
+---------------------------------
+STEP 3 — Upload
+---------------------------------
+1. Go to https://play.google.com/console  (pay $25 once if new)
+2. Create app → name: Word Stars → Game → Free
+3. Testing → Internal testing → Create release → upload app-release.aab
+4. Paste store text from  play-store\LISTING.txt
+5. Data safety from  play-store\DATA_SAFETY.txt
+6. Privacy policy URL:  https://YOUR-HOST/privacy
+7. Add 2 screenshots from your phone (Home + Spell)
+8. Icon: play-store\icon-512.png
+9. Feature graphic: play-store\feature-graphic.png
+
+Google reviews it (hours to days). They do not publish from your PC automatically.
+
+Do NOT tick “Designed for kids / families” while Chat is on — they often reject that.
+
+---------------------------------
+What I cannot do from here
+---------------------------------
+- Pay the $25
+- Click Publish on your Google account
+- Build .aab without Android Studio / JDK

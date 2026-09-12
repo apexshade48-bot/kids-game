@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.WordStars" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#7C3AED</item>
+        <item name="android:navigationBarColor">#7C3AED</item>
+        <item name="android:windowBackground">#C4B5FD</item>
+    </style>
+</resources>

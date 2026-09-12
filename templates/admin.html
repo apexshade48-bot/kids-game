@@ -151,6 +151,9 @@
             {% if user.progress %}🔥 {{ user.progress.streak }}{% else %}0{% endif %}
           </td>
           <td class="admin-stars">
+            🔤 {{ user.scores.letters }}
+            🔊 {{ user.scores.sounds }}
+            🌱 {{ user.scores.beginner }}
             🟢 {{ user.scores.easy }}
             🟡 {{ user.scores.normal }}
             🔴 {{ user.scores.hard }}

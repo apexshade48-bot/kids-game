@@ -15,6 +15,9 @@
   <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.svg') }}" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.svg') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ app_version }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}?v={{ app_version }}" />
   <script>
     (function () {
@@ -32,6 +35,18 @@
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}" data-user-aura="{{ user_aura or '' }}">
+  <div class="app-sky" aria-hidden="true">
+    <span class="sky-sun"></span>
+    <span class="sky-cloud sky-cloud-1"></span>
+    <span class="sky-cloud sky-cloud-2"></span>
+    <span class="sky-cloud sky-cloud-3"></span>
+    <span class="sky-sparkle s1"></span>
+    <span class="sky-sparkle s2"></span>
+    <span class="sky-sparkle s3"></span>
+    <span class="sky-hill sky-hill-back"></span>
+    <span class="sky-hill sky-hill-front"></span>
+  </div>
+  <div class="scroll-progress" aria-hidden="true"><span class="scroll-progress-bar"></span></div>
   <div class="offline-banner" role="status" aria-live="polite">
     📡 No internet — check Wi‑Fi and reload.
   </div>
@@ -44,10 +59,6 @@
         {% if wallet %}
         <span class="top-coins">🪙 {{ wallet.coins }}</span>
         {% endif %}
-        <span class="hello">Hi, {{ player_name(session.get('user_name', 'Friend'), (avatar.name_style if avatar else 'plain'), session.get('user_id'), is_owner) }}!</span>
-        <form action="{{ url_for('logout') }}" method="post" class="logout-form">
-          <button type="submit" class="btn btn-small btn-ghost">Log out</button>
-        </form>
       </div>
       {% endif %}
     </header>
@@ -92,34 +103,26 @@
         <span class="nav-icon">💬</span>
         <span>Chat</span>
       </a>
-      <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint in ('leaderboard', 'player_profile') %}active{% endif %}">
+      <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
         <span class="nav-icon">🏆</span>
         <span>Board</span>
       </a>
-      {% if is_admin %}
-      <a href="{{ url_for('admin_panel') }}" class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
-        <span class="nav-icon">🛠️</span>
-        <span>Admin</span>
+      <a href="{{ url_for('more_page') }}" class="nav-item {% if request.endpoint in ('more_page', 'settings_page', 'parent_sheet', 'player_profile', 'admin_panel', 'hacker_panel', 'apex_shade', 'teacher_page') %}active{% endif %}">
+        <span class="nav-icon">📁</span>
+        <span>More</span>
       </a>
-      {% endif %}
-      {% if is_hacker or is_owner %}
-      <a href="{{ url_for('hacker_panel') }}" class="nav-item {% if request.endpoint == 'hacker_panel' %}active{% endif %}">
-        <span class="nav-icon">💻</span>
-        <span>Hacker</span>
-      </a>
-      {% endif %}
-      {% if is_owner %}
-      <a href="{{ url_for('apex_shade') }}" class="nav-item {% if request.endpoint == 'apex_shade' %}active{% endif %}">
-        <span class="nav-icon">⚡</span>
-        <span>Shade</span>
-      </a>
-      {% endif %}
     </nav>
     {% endif %}
   </div>
 
   <script src="{{ url_for('static', filename='js/device.js') }}?v={{ app_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}?v={{ app_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/motion.js') }}?v={{ app_version }}" defer></script>
   {% block scripts %}{% endblock %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+    }
+  </script>
 </body>
 </html>

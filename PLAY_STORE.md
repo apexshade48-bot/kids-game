@@ -1,5 +1,9 @@
 # Word Stars — Google Play Store
 
+**Start here:** folder **`play-store/`** (`README.md`, `LISTING.txt`, `twa-manifest.json`, `build-twa.bat`).
+
+This is a **Flask web game**. Play Store does not host Python apps. The store listing is an Android wrapper (Trusted Web Activity) that opens the **live HTTPS site**.
+
 This is a **Flask web game**. Play Store does not host Python apps. The store listing is an Android wrapper (Trusted Web Activity) that opens the **live HTTPS site**.
 
 You cannot finish a Play Store publish from this PC alone. Google requires:

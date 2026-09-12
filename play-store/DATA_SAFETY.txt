@@ -1,0 +1,27 @@
+Play Console → App content → Data safety
+
+Does your app collect or share user data?
+YES — collected on YOUR game server, not by Google.
+
+Collected (app functionality, not sold, not used for ads):
+
+• Name (player nickname) — Account
+• Password (hashed) — Account
+• Parent email (optional / signup) — App functionality (stop-play review email)
+• Game progress (coins, stars, unlocks, likes, chat on this server) — App functionality
+• Approximate activity (play session words/mistakes) — App functionality
+
+Not collected:
+• Location, contacts, photos, files, calendar
+• Advertising ID
+• Precise location
+
+Microphone: used only in the browser when the player taps “Say it”. Audio is not uploaded to Google. Speech stays on the device for recognition unless the browser sends it to the OS speech service.
+
+Sharing: not sold. Chat messages are visible to other players on the same Word Stars server.
+
+Security: data is in transit via HTTPS if you host with HTTPS. Passwords are hashed.
+
+Users can request deletion: host/admin can delete the account from Admin.
+
+Kids: do not enroll in Designed for Families while open player chat is on.

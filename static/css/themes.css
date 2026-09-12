@@ -18,11 +18,13 @@ html[data-theme="ocean"] {
 }
 
 html[data-theme="ocean"] body {
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(34, 211, 238, 0.2) 0, transparent 45%),
-    radial-gradient(ellipse at 100% 20%, rgba(14, 165, 233, 0.15) 0, transparent 40%),
-    var(--bg);
+  background: linear-gradient(180deg, #7dd3fc 0%, #bae6fd 40%, #67e8f9 100%);
 }
+html[data-theme="ocean"] .app-sky {
+  background: linear-gradient(180deg, #38bdf8 0%, #7dd3fc 35%, #67e8f9 70%, #0ea5e9 100%);
+}
+html[data-theme="ocean"] .sky-hill-back { background: #0284c7; }
+html[data-theme="ocean"] .sky-hill-front { background: #0369a1; }
 
 html[data-theme="forest"] {
   --bg: #f0fdf4;
@@ -40,11 +42,13 @@ html[data-theme="forest"] {
 }
 
 html[data-theme="forest"] body {
-  background:
-    radial-gradient(ellipse at 10% 0%, rgba(74, 222, 128, 0.25) 0, transparent 45%),
-    radial-gradient(ellipse at 90% 30%, rgba(34, 197, 94, 0.12) 0, transparent 40%),
-    var(--bg);
+  background: linear-gradient(180deg, #86efac 0%, #bbf7d0 45%, #4ade80 100%);
 }
+html[data-theme="forest"] .app-sky {
+  background: linear-gradient(180deg, #67e8f9 0%, #bbf7d0 40%, #4ade80 75%, #166534 100%);
+}
+html[data-theme="forest"] .sky-hill-back { background: #15803d; }
+html[data-theme="forest"] .sky-hill-front { background: #14532d; }
 
 html[data-theme="sunset"] {
   --bg: #fff7ed;
@@ -62,11 +66,13 @@ html[data-theme="sunset"] {
 }
 
 html[data-theme="sunset"] body {
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(251, 146, 60, 0.25) 0, transparent 45%),
-    radial-gradient(ellipse at 100% 0%, rgba(244, 63, 94, 0.12) 0, transparent 40%),
-    var(--bg);
+  background: linear-gradient(180deg, #fb923c 0%, #fdba74 40%, #fecdd3 100%);
 }
+html[data-theme="sunset"] .app-sky {
+  background: linear-gradient(180deg, #fb7185 0%, #fb923c 35%, #fde68a 70%, #f97316 100%);
+}
+html[data-theme="sunset"] .sky-hill-back { background: #c2410c; }
+html[data-theme="sunset"] .sky-hill-front { background: #9a3412; }
 
 html[data-theme="candy"] {
   --bg: #fdf2f8;
@@ -84,11 +90,13 @@ html[data-theme="candy"] {
 }
 
 html[data-theme="candy"] body {
-  background:
-    radial-gradient(ellipse at 0% 10%, rgba(244, 114, 182, 0.25) 0, transparent 45%),
-    radial-gradient(ellipse at 100% 0%, rgba(192, 132, 252, 0.15) 0, transparent 40%),
-    var(--bg);
+  background: linear-gradient(180deg, #f9a8d4 0%, #fbcfe8 45%, #e9d5ff 100%);
 }
+html[data-theme="candy"] .app-sky {
+  background: linear-gradient(180deg, #f472b6 0%, #f9a8d4 30%, #e9d5ff 65%, #c084fc 100%);
+}
+html[data-theme="candy"] .sky-hill-back { background: #db2777; }
+html[data-theme="candy"] .sky-hill-front { background: #be185d; }
 
 html[data-theme="night"] {
   --bg: #0f172a;
@@ -106,11 +114,23 @@ html[data-theme="night"] {
 }
 
 html[data-theme="night"] body {
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(139, 92, 246, 0.2) 0, transparent 45%),
-    radial-gradient(ellipse at 100% 20%, rgba(56, 189, 248, 0.08) 0, transparent 40%),
-    var(--bg);
+  background: #0f172a;
 }
+html[data-theme="night"] .app-sky {
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff 0, transparent 2px),
+    radial-gradient(1px 1px at 40% 30%, #cbd5e1 0, transparent 2px),
+    radial-gradient(1.5px 1.5px at 70% 14%, #fff 0, transparent 2px),
+    radial-gradient(1px 1px at 88% 40%, #93c5fd 0, transparent 2px),
+    linear-gradient(180deg, #020617 0%, #1e1b4b 55%, #0f172a 100%);
+}
+html[data-theme="night"] .sky-sun {
+  background: radial-gradient(circle at 35% 35%, #e2e8f0, #94a3b8 70%);
+  box-shadow: 0 0 28px 8px rgba(226, 232, 240, 0.25);
+}
+html[data-theme="night"] .sky-cloud { opacity: 0.18; }
+html[data-theme="night"] .sky-hill-back { background: #1e293b; }
+html[data-theme="night"] .sky-hill-front { background: #0f172a; }
 
 html[data-theme="night"] .top-bar,
 html[data-theme="night"] .bottom-nav {
@@ -159,12 +179,20 @@ html[data-theme="aura"] {
 }
 
 html[data-theme="aura"] body {
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(232, 121, 249, 0.35) 0, transparent 50%),
-    radial-gradient(ellipse at 90% 20%, rgba(103, 232, 249, 0.2) 0, transparent 45%),
-    radial-gradient(ellipse at 50% 100%, rgba(167, 139, 250, 0.25) 0, transparent 50%),
-    var(--bg);
+  background: #12061f;
 }
+html[data-theme="aura"] .app-sky {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(232, 121, 249, 0.45) 0, transparent 42%),
+    radial-gradient(ellipse at 85% 18%, rgba(103, 232, 249, 0.28) 0, transparent 40%),
+    linear-gradient(180deg, #2e1065 0%, #4c1d95 45%, #12061f 100%);
+}
+html[data-theme="aura"] .sky-sun {
+  background: radial-gradient(circle at 35% 35%, #f5d0fe, #e879f9 60%, #a21caf);
+  box-shadow: 0 0 40px 12px rgba(232, 121, 249, 0.45);
+}
+html[data-theme="aura"] .sky-hill-back { background: #6b21a8; }
+html[data-theme="aura"] .sky-hill-front { background: #3b0764; }
 
 html[data-theme="aura"] .top-bar,
 html[data-theme="aura"] .bottom-nav {
@@ -220,6 +248,265 @@ html[data-theme="aura"] .spin-wheel {
     0 0 0 4px #67e8f9,
     0 0 40px rgba(232, 121, 249, 0.45);
 }
+
+html[data-theme="rainbow"] {
+  --bg: #fef9c3;
+  --bg2: #fde68a;
+  --card: #ffffff;
+  --text: #3f3f46;
+  --muted: #a16207;
+  --primary: #e11d48;
+  --primary-dark: #be123c;
+  --primary-soft: #ffe4e6;
+  --primary-border: #fecdd3;
+  --gold: #eab308;
+  --border: #fde68a;
+}
+html[data-theme="rainbow"] body {
+  background: linear-gradient(180deg, #fda4af, #fde68a, #86efac, #7dd3fc);
+}
+html[data-theme="rainbow"] .app-sky {
+  background: linear-gradient(180deg, #fb7185 0%, #fbbf24 25%, #4ade80 50%, #38bdf8 75%, #a78bfa 100%);
+}
+html[data-theme="rainbow"] .sky-hill-back { background: #7c3aed; }
+html[data-theme="rainbow"] .sky-hill-front { background: #db2777; }
+
+html[data-theme="beach"] {
+  --bg: #ecfeff;
+  --bg2: #fef9c3;
+  --card: #ffffff;
+  --text: #0c4a6e;
+  --muted: #0369a1;
+  --primary: #0ea5e9;
+  --primary-dark: #0284c7;
+  --primary-soft: #e0f2fe;
+  --primary-border: #bae6fd;
+  --gold: #f59e0b;
+  --border: #fde68a;
+}
+html[data-theme="beach"] body,
+html[data-theme="beach"] .app-sky {
+  background: linear-gradient(180deg, #7dd3fc 0%, #bae6fd 40%, #fde68a 72%, #fb923c 100%);
+}
+html[data-theme="beach"] .sky-hill-back { background: #38bdf8; }
+html[data-theme="beach"] .sky-hill-front { background: #fbbf24; }
+
+html[data-theme="snow"] {
+  --bg: #f8fafc;
+  --bg2: #e2e8f0;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --primary: #0284c7;
+  --primary-dark: #0369a1;
+  --primary-soft: #e0f2fe;
+  --primary-border: #bae6fd;
+  --gold: #38bdf8;
+  --border: #cbd5e1;
+}
+html[data-theme="snow"] body,
+html[data-theme="snow"] .app-sky {
+  background: linear-gradient(180deg, #e0f2fe 0%, #f8fafc 55%, #cbd5e1 100%);
+}
+html[data-theme="snow"] .sky-sun {
+  background: radial-gradient(circle at 35% 35%, #fff, #e2e8f0 70%);
+  box-shadow: 0 0 28px 8px rgba(255,255,255,0.7);
+}
+html[data-theme="snow"] .sky-hill-back { background: #94a3b8; }
+html[data-theme="snow"] .sky-hill-front { background: #e2e8f0; }
+
+html[data-theme="meadow"] {
+  --bg: #ecfccb;
+  --bg2: #d9f99d;
+  --card: #ffffff;
+  --text: #3f6212;
+  --muted: #4d7c0f;
+  --primary: #65a30d;
+  --primary-dark: #4d7c0f;
+  --primary-soft: #ecfccb;
+  --primary-border: #bef264;
+  --gold: #eab308;
+  --border: #bef264;
+}
+html[data-theme="meadow"] body,
+html[data-theme="meadow"] .app-sky {
+  background: linear-gradient(180deg, #7dd3fc 0%, #bbf7d0 40%, #84cc16 78%, #365314 100%);
+}
+html[data-theme="meadow"] .sky-hill-back { background: #65a30d; }
+html[data-theme="meadow"] .sky-hill-front { background: #3f6212; }
+
+html[data-theme="lemon"] {
+  --bg: #fefce8;
+  --bg2: #fef08a;
+  --card: #ffffff;
+  --text: #713f12;
+  --muted: #a16207;
+  --primary: #ca8a04;
+  --primary-dark: #a16207;
+  --primary-soft: #fef9c3;
+  --primary-border: #fde047;
+  --gold: #eab308;
+  --border: #fde047;
+}
+html[data-theme="lemon"] body,
+html[data-theme="lemon"] .app-sky {
+  background: linear-gradient(180deg, #fde047 0%, #fef08a 40%, #fdba74 100%);
+}
+html[data-theme="lemon"] .sky-hill-back { background: #f59e0b; }
+html[data-theme="lemon"] .sky-hill-front { background: #d97706; }
+
+html[data-theme="bubble"] {
+  --bg: #ecfeff;
+  --bg2: #cffafe;
+  --card: #ffffff;
+  --text: #155e75;
+  --muted: #0e7490;
+  --primary: #06b6d4;
+  --primary-dark: #0891b2;
+  --primary-soft: #cffafe;
+  --primary-border: #a5f3fc;
+  --gold: #22d3ee;
+  --border: #a5f3fc;
+}
+html[data-theme="bubble"] body,
+html[data-theme="bubble"] .app-sky {
+  background: linear-gradient(180deg, #a5f3fc 0%, #e0f2fe 45%, #c4b5fd 100%);
+}
+html[data-theme="bubble"] .sky-hill-back { background: #22d3ee; }
+html[data-theme="bubble"] .sky-hill-front { background: #a78bfa; }
+
+html[data-theme="lava"] {
+  --bg: #450a0a;
+  --bg2: #7f1d1d;
+  --card: #7f1d1d;
+  --text: #fef2f2;
+  --muted: #fecaca;
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-soft: #7c2d12;
+  --primary-border: #fb923c;
+  --gold: #fbbf24;
+  --border: #b91c1c;
+}
+html[data-theme="lava"] body,
+html[data-theme="lava"] .app-sky {
+  background: linear-gradient(180deg, #7f1d1d 0%, #ea580c 40%, #facc15 78%, #450a0a 100%);
+}
+html[data-theme="lava"] .sky-sun {
+  background: radial-gradient(circle at 35% 35%, #fde68a, #ef4444 70%);
+  box-shadow: 0 0 40px 12px rgba(239, 68, 68, 0.5);
+}
+html[data-theme="lava"] .sky-cloud { opacity: 0.25; }
+html[data-theme="lava"] .sky-hill-back { background: #991b1b; }
+html[data-theme="lava"] .sky-hill-front { background: #450a0a; }
+html[data-theme="lava"] .top-bar,
+html[data-theme="lava"] .bottom-nav {
+  background: rgba(127, 29, 29, 0.94);
+  border-color: #b91c1c;
+  color: #fef2f2;
+}
+html[data-theme="lava"] .card,
+html[data-theme="lava"] .stat-card,
+html[data-theme="lava"] .mode-card {
+  background: #7f1d1d;
+  color: #fef2f2;
+}
+
+html[data-theme="galaxy"] {
+  --bg: #020617;
+  --bg2: #1e1b4b;
+  --card: #1e1b4b;
+  --text: #e0e7ff;
+  --muted: #a5b4fc;
+  --primary: #22d3ee;
+  --primary-dark: #06b6d4;
+  --primary-soft: #312e81;
+  --primary-border: #6366f1;
+  --gold: #f472b6;
+  --border: #4338ca;
+}
+html[data-theme="galaxy"] body,
+html[data-theme="galaxy"] .app-sky {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(244, 114, 182, 0.35) 0, transparent 40%),
+    radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.25) 0, transparent 42%),
+    linear-gradient(180deg, #020617 0%, #312e81 50%, #0f172a 100%);
+}
+html[data-theme="galaxy"] .sky-sun {
+  background: radial-gradient(circle at 35% 35%, #e0e7ff, #22d3ee 70%);
+  box-shadow: 0 0 36px 10px rgba(34, 211, 238, 0.4);
+}
+html[data-theme="galaxy"] .sky-cloud { opacity: 0.12; }
+html[data-theme="galaxy"] .sky-hill-back { background: #312e81; }
+html[data-theme="galaxy"] .sky-hill-front { background: #1e1b4b; }
+html[data-theme="galaxy"] .top-bar,
+html[data-theme="galaxy"] .bottom-nav {
+  background: rgba(30, 27, 75, 0.94);
+  border-color: #4338ca;
+  color: #e0e7ff;
+}
+html[data-theme="galaxy"] .card,
+html[data-theme="galaxy"] .stat-card,
+html[data-theme="galaxy"] .mode-card {
+  background: #1e1b4b;
+  color: #e0e7ff;
+}
+
+.bg-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (min-width: 560px) {
+  .bg-picker { grid-template-columns: repeat(5, 1fr); }
+}
+.bg-option {
+  appearance: none;
+  border: 3px solid var(--border);
+  background: var(--card);
+  border-radius: 16px;
+  padding: 8px 6px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.bg-option.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.bg-preview {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+.bg-option-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+}
+.bg-preview-violet { background: linear-gradient(180deg, #a78bfa, #fbcfe8, #fde68a); }
+.bg-preview-ocean { background: linear-gradient(180deg, #38bdf8, #67e8f9, #0ea5e9); }
+.bg-preview-forest { background: linear-gradient(180deg, #67e8f9, #86efac, #166534); }
+.bg-preview-sunset { background: linear-gradient(180deg, #fb7185, #fb923c, #fde68a); }
+.bg-preview-candy { background: linear-gradient(180deg, #f472b6, #f9a8d4, #c084fc); }
+.bg-preview-night { background: linear-gradient(180deg, #020617, #1e1b4b, #0f172a); }
+.bg-preview-aura { background: linear-gradient(180deg, #e879f9, #4c1d95, #12061f); }
+.bg-preview-rainbow { background: linear-gradient(180deg, #fb7185, #fbbf24, #4ade80, #38bdf8); }
+.bg-preview-beach { background: linear-gradient(180deg, #7dd3fc, #fde68a, #fb923c); }
+.bg-preview-snow { background: linear-gradient(180deg, #e0f2fe, #f8fafc, #cbd5e1); }
+.bg-preview-meadow { background: linear-gradient(180deg, #7dd3fc, #86efac, #365314); }
+.bg-preview-lemon { background: linear-gradient(180deg, #fde047, #fef08a, #fdba74); }
+.bg-preview-bubble { background: linear-gradient(180deg, #a5f3fc, #e0f2fe, #c4b5fd); }
+.bg-preview-lava { background: linear-gradient(180deg, #7f1d1d, #ea580c, #facc15); }
+.bg-preview-galaxy { background: linear-gradient(180deg, #312e81, #22d3ee, #f472b6); }
 
 /* Theme picker */
 

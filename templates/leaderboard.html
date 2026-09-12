@@ -15,8 +15,11 @@
   </p>
 </section>
 
-<div class="tabs mode-tabs">
+<div class="tabs mode-tabs mode-tabs-scroll">
   <a href="{{ url_for('leaderboard', mode='coins') }}" class="tab {% if mode == 'coins' %}active{% endif %}">🪙 Coins</a>
+  <a href="{{ url_for('leaderboard', mode='letters') }}" class="tab {% if mode == 'letters' %}active{% endif %}">🔤 Letters</a>
+  <a href="{{ url_for('leaderboard', mode='sounds') }}" class="tab {% if mode == 'sounds' %}active{% endif %}">🔊 Sounds</a>
+  <a href="{{ url_for('leaderboard', mode='beginner') }}" class="tab {% if mode == 'beginner' %}active{% endif %}">🌱 Beginner</a>
   <a href="{{ url_for('leaderboard', mode='easy') }}" class="tab {% if mode == 'easy' %}active{% endif %}">🟢 Easy</a>
   <a href="{{ url_for('leaderboard', mode='normal') }}" class="tab {% if mode == 'normal' %}active{% endif %}">🟡 Normal</a>
   <a href="{{ url_for('leaderboard', mode='hard') }}" class="tab {% if mode == 'hard' %}active{% endif %}">🔴 Hard</a>

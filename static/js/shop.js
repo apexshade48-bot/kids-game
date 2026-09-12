@@ -40,7 +40,14 @@
         t.classList.toggle("active", t === tab);
       });
       document.querySelectorAll("[data-slot-panel]").forEach(function (panel) {
-        panel.classList.toggle("hidden", panel.getAttribute("data-slot-panel") !== slot);
+        var on = panel.getAttribute("data-slot-panel") === slot;
+        panel.classList.toggle("hidden", !on);
+        if (on) {
+          panel.querySelectorAll(".js-reveal, .shop-card").forEach(function (el) {
+            el.classList.add("js-reveal");
+            el.classList.add("is-in");
+          });
+        }
       });
     });
   });

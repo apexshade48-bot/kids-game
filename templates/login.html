@@ -27,6 +27,11 @@
       Secret password
       <input type="password" name="password" minlength="3" required autocomplete="new-password" placeholder="3+ letters or numbers" />
     </label>
+    <label>
+      Parent email
+      <input type="email" name="parent_email" value="{{ parent_email or '' }}" maxlength="120" required autocomplete="email" placeholder="mom@email.com" />
+    </label>
+    <p class="section-desc">When the kid taps Stop, this email gets the play review.</p>
 
     <div class="aura-field">
       <p class="aura-field-title">Choose your aura <span class="req">*</span></p>

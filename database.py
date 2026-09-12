@@ -26,31 +26,66 @@ from shop import (
 _DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent))
 DB_PATH = _DATA_DIR / "kids_word_game.db"
 
-FREE_MODES = frozenset({"easy"})
+FREE_MODES = frozenset({"letters", "sounds", "beginner", "easy"})
 UNLOCK_COSTS = {
     "normal": 300,
     "hard": 800,
     "top": 2000,
     "impossible": 3000,  # family spoken English (admin can unlock for free)
 }
-ALL_MODES = ("easy", "normal", "hard", "top", "impossible")
+ALL_MODES = (
+    "letters",
+    "sounds",
+    "beginner",
+    "easy",
+    "normal",
+    "hard",
+    "top",
+    "impossible",
+)
 LOCKED_MODES = tuple(m for m in ALL_MODES if m not in FREE_MODES)
-MODE_SQL_LIST = "'easy', 'normal', 'hard', 'top', 'impossible'"
+MODE_SQL_LIST = (
+    "'letters', 'sounds', 'beginner', 'easy', 'normal', 'hard', 'top', 'impossible'"
+)
 UNLOCK_SQL_LIST = "'normal', 'hard', 'top', 'impossible'"
 HINT_COST = 5  # coins to reveal first letter in Spell mode
 SPIN_COST = 150  # coins for an extra lucky spin (after free daily)
 STREAK_BONUSES = {1: 10, 3: 25, 7: 50}  # coins on milestone streak days
 
 # Account aura (theme/skin) — chosen at signup or first login
-AURA_IDS = ("violet", "ocean", "forest", "sunset", "candy", "night", "aura")
+AURA_IDS = (
+    "violet",
+    "ocean",
+    "forest",
+    "sunset",
+    "candy",
+    "night",
+    "aura",
+    "rainbow",
+    "beach",
+    "snow",
+    "meadow",
+    "lemon",
+    "bubble",
+    "lava",
+    "galaxy",
+)
 AURA_CHOICES = (
-    {"id": "violet", "label": "Violet Star", "emoji": "💜", "dots": ("#7c3aed", "#f8fafc", "#f59e0b")},
-    {"id": "ocean", "label": "Ocean Glow", "emoji": "🌊", "dots": ("#0284c7", "#ecfeff", "#22d3ee")},
-    {"id": "forest", "label": "Forest Leaf", "emoji": "🌿", "dots": ("#16a34a", "#f0fdf4", "#86efac")},
-    {"id": "sunset", "label": "Sunset Fire", "emoji": "🌅", "dots": ("#ea580c", "#fff7ed", "#fbbf24")},
-    {"id": "candy", "label": "Candy Pop", "emoji": "🍬", "dots": ("#db2777", "#fdf2f8", "#f9a8d4")},
-    {"id": "night", "label": "Night Sky", "emoji": "🌙", "dots": ("#a78bfa", "#0f172a", "#38bdf8")},
-    {"id": "aura", "label": "Mystic Aura", "emoji": "✨", "dots": ("#c084fc", "#fae8ff", "#67e8f9")},
+    {"id": "violet", "label": "Magic sky", "emoji": "💜", "dots": ("#7c3aed", "#f8fafc", "#f59e0b")},
+    {"id": "ocean", "label": "Ocean", "emoji": "🌊", "dots": ("#0284c7", "#ecfeff", "#22d3ee")},
+    {"id": "forest", "label": "Forest", "emoji": "🌿", "dots": ("#16a34a", "#f0fdf4", "#86efac")},
+    {"id": "sunset", "label": "Sunset", "emoji": "🌅", "dots": ("#ea580c", "#fff7ed", "#fbbf24")},
+    {"id": "candy", "label": "Candy", "emoji": "🍬", "dots": ("#db2777", "#fdf2f8", "#f9a8d4")},
+    {"id": "night", "label": "Night", "emoji": "🌙", "dots": ("#a78bfa", "#0f172a", "#38bdf8")},
+    {"id": "aura", "label": "Mystic", "emoji": "✨", "dots": ("#c084fc", "#fae8ff", "#67e8f9")},
+    {"id": "rainbow", "label": "Rainbow", "emoji": "🌈", "dots": ("#ef4444", "#fbbf24", "#22c55e")},
+    {"id": "beach", "label": "Beach", "emoji": "🏖️", "dots": ("#38bdf8", "#fde68a", "#fb923c")},
+    {"id": "snow", "label": "Snow", "emoji": "❄️", "dots": ("#e0f2fe", "#94a3b8", "#38bdf8")},
+    {"id": "meadow", "label": "Meadow", "emoji": "🌼", "dots": ("#84cc16", "#fef08a", "#4ade80")},
+    {"id": "lemon", "label": "Sunshine", "emoji": "☀️", "dots": ("#facc15", "#fef9c3", "#fb923c")},
+    {"id": "bubble", "label": "Bubbles", "emoji": "🫧", "dots": ("#67e8f9", "#e0f2fe", "#a78bfa")},
+    {"id": "lava", "label": "Lava", "emoji": "🌋", "dots": ("#ef4444", "#fb923c", "#7f1d1d")},
+    {"id": "galaxy", "label": "Galaxy", "emoji": "🌌", "dots": ("#4c1d95", "#22d3ee", "#f472b6")},
 )
 
 
@@ -111,6 +146,8 @@ def _ensure_user_columns(conn):
         conn.execute("ALTER TABLE users ADD COLUMN is_hacker INTEGER NOT NULL DEFAULT 0")
     if "equipped_name" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN equipped_name TEXT")
+    if "parent_email" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN parent_email TEXT")
 
 
 def get_owner_admin_name() -> str:
@@ -147,11 +184,16 @@ def _needs_mode_migration(conn, mode_token: str) -> bool:
 
 
 def _migrate_modes_schema(conn):
-    """Ensure scores/unlocks allow top + impossible modes."""
+    """Ensure scores/unlocks allow every mode in ALL_MODES."""
     sql = _scores_sql(conn)
-    needs_rebuild = sql and (
-        "'impossible'" not in sql or "'top'" not in sql
+    needed = (
+        "'impossible'",
+        "'top'",
+        "'letters'",
+        "'sounds'",
+        "'beginner'",
     )
+    needs_rebuild = bool(sql) and any(token not in sql for token in needed)
     if not needs_rebuild:
         for user in conn.execute("SELECT id FROM users").fetchall():
             for mode in ALL_MODES:
@@ -256,11 +298,23 @@ def init_db():
                 UNIQUE (seller_id, item_id),
                 FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS play_sessions (
+                user_id INTEGER PRIMARY KEY,
+                coins INTEGER NOT NULL DEFAULT 0,
+                learned TEXT,
+                mistakes TEXT,
+                started TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_user_columns(conn)
         _migrate_modes_schema(conn)
         _ensure_chat_table(conn)
+        _ensure_review_table(conn)
+        _ensure_likes_table(conn)
+        _ensure_badge_tables(conn)
         _ensure_admin_user(conn)
         _ensure_starter_clothes(conn)
         conn.commit()
@@ -268,7 +322,113 @@ def init_db():
         conn.close()
 
 
-def create_user(name: str, password: str, aura: str | None = None) -> tuple[bool, str | int]:
+def get_play_session(user_id: int) -> dict | None:
+    """Fetch current round data from DB."""
+    import json
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT coins, learned, mistakes, started FROM play_sessions WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "user_id": user_id,
+            "coins": int(row["coins"] or 0),
+            "learned": json.loads(row["learned"] or "[]"),
+            "mistakes": json.loads(row["mistakes"] or "[]"),
+            "started": row["started"],
+        }
+    finally:
+        conn.close()
+
+
+def save_play_session(user_id: int, data: dict) -> None:
+    """Save current round data to DB."""
+    import json
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO play_sessions (user_id, coins, learned, mistakes, started)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                coins = excluded.coins,
+                learned = excluded.learned,
+                mistakes = excluded.mistakes,
+                started = excluded.started
+            """,
+            (
+                user_id,
+                int(data.get("coins") or 0),
+                json.dumps(data.get("learned") or []),
+                json.dumps(data.get("mistakes") or []),
+                data.get("started"),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_play_session(user_id: int) -> None:
+    """Wipe round data."""
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM play_sessions WHERE user_id = ?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def normalize_parent_email(raw: str | None) -> str | None:
+
+    """Return a cleaned email, '' if empty, or None if invalid."""
+    e = (raw or "").strip().lower()
+    if not e:
+        return ""
+    if " " in e or "@" not in e or len(e) > 120:
+        return None
+    local, _, domain = e.partition("@")
+    if not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+        return None
+    return e
+
+
+def get_parent_email(user_id: int) -> str:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT parent_email FROM users WHERE id = ?", (int(user_id),)
+        ).fetchone()
+        return (row["parent_email"] or "").strip() if row else ""
+    finally:
+        conn.close()
+
+
+def set_parent_email(user_id: int, email: str | None) -> tuple[bool, str]:
+    cleaned = normalize_parent_email(email)
+    if cleaned is None:
+        return False, "Please enter a real parent email, like mom@email.com."
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE users SET parent_email = ? WHERE id = ?",
+            (cleaned or None, int(user_id)),
+        )
+        conn.commit()
+        return True, cleaned
+    finally:
+        conn.close()
+
+
+def create_user(
+    name: str,
+    password: str,
+    aura: str | None = None,
+    parent_email: str | None = None,
+) -> tuple[bool, str | int]:
     """Create user. Returns (ok, user_id or error message)."""
     name = name.strip()
     if not name:
@@ -280,6 +440,11 @@ def create_user(name: str, password: str, aura: str | None = None) -> tuple[bool
     aura_norm = normalize_aura(aura)
     if not aura_norm:
         return False, "Please choose your aura (theme)."
+    email = normalize_parent_email(parent_email)
+    if email is None:
+        return False, "Please enter a real parent email, like mom@email.com."
+    if not email:
+        return False, "Ask a grown-up to type their email."
 
     conn = get_connection()
     try:
@@ -290,8 +455,11 @@ def create_user(name: str, password: str, aura: str | None = None) -> tuple[bool
             return False, "That name is already taken."
 
         cur = conn.execute(
-            "INSERT INTO users (name, password_hash, coins, aura) VALUES (?, ?, 0, ?)",
-            (name, generate_password_hash(password), aura_norm),
+            """
+            INSERT INTO users (name, password_hash, coins, aura, parent_email)
+            VALUES (?, ?, 0, ?, ?)
+            """,
+            (name, generate_password_hash(password), aura_norm, email),
         )
         user_id = cur.lastrowid
         for mode in ALL_MODES:
@@ -1232,21 +1400,18 @@ def get_all_users() -> list[dict]:
                    COALESCE(u.is_banned, 0) AS is_banned,
                    COALESCE(u.is_fake, 0) AS is_fake,
                    COALESCE(u.god_mode, 0) AS god_mode,
-                   COALESCE(u.is_hacker, 0) AS is_hacker,
-                   COALESCE(se.points, 0) AS easy_pts,
-                   COALESCE(sn.points, 0) AS normal_pts,
-                   COALESCE(sh.points, 0) AS hard_pts,
-                   COALESCE(st.points, 0) AS top_pts,
-                   COALESCE(si.points, 0) AS impossible_pts
+                   COALESCE(u.is_hacker, 0) AS is_hacker
             FROM users u
-            LEFT JOIN scores se ON se.user_id = u.id AND se.mode = 'easy'
-            LEFT JOIN scores sn ON sn.user_id = u.id AND sn.mode = 'normal'
-            LEFT JOIN scores sh ON sh.user_id = u.id AND sh.mode = 'hard'
-            LEFT JOIN scores st ON st.user_id = u.id AND st.mode = 'top'
-            LEFT JOIN scores si ON si.user_id = u.id AND si.mode = 'impossible'
             ORDER BY u.id ASC
             """
         ).fetchall()
+        score_map: dict[int, dict[str, int]] = {}
+        for srow in conn.execute(
+            "SELECT user_id, mode, points FROM scores"
+        ).fetchall():
+            score_map.setdefault(int(srow["user_id"]), {})[srow["mode"]] = int(
+                srow["points"] or 0
+            )
         users = []
         for row in rows:
             unlocks = conn.execute(
@@ -1273,11 +1438,8 @@ def get_all_users() -> list[dict]:
                 "has_admin_gear": bool(admin_owned),
                 "created_at": row["created_at"],
                 "scores": {
-                    "easy": row["easy_pts"],
-                    "normal": row["normal_pts"],
-                    "hard": row["hard_pts"],
-                    "top": row["top_pts"],
-                    "impossible": row["impossible_pts"],
+                    mode: int(score_map.get(int(row["id"]), {}).get(mode, 0) or 0)
+                    for mode in ALL_MODES
                 },
                 "unlocked": unlocked,
             })
@@ -1405,7 +1567,7 @@ def admin_set_coins(user_id: int, coins: int) -> tuple[bool, str | int]:
 
 def admin_grant_unlock(user_id: int, mode: str) -> tuple[bool, str]:
     if mode in FREE_MODES:
-        return False, "Easy is always free."
+        return False, "That mode is already free."
     if mode not in UNLOCK_COSTS:
         return False, "Invalid mode."
     conn = get_connection()
@@ -1426,7 +1588,7 @@ def admin_grant_unlock(user_id: int, mode: str) -> tuple[bool, str]:
 def admin_revoke_unlock(user_id: int, mode: str) -> tuple[bool, str]:
     """Lock a paid mode for a player (Normal / Hard / Top). Easy cannot be locked."""
     if mode in FREE_MODES:
-        return False, "Easy is always free and cannot be locked."
+        return False, "Starter modes are free and cannot be locked."
     if mode not in UNLOCK_COSTS:
         return False, "Invalid mode."
     conn = get_connection()
@@ -1453,12 +1615,13 @@ def admin_lock_all_paid_modes(user_id: int) -> tuple[bool, str]:
         row = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             return False, "User not found."
+        placeholders = ",".join("?" * len(LOCKED_MODES))
         conn.execute(
-            "DELETE FROM unlocks WHERE user_id = ? AND mode IN ('normal', 'hard', 'top', 'impossible')",
-            (user_id,),
+            f"DELETE FROM unlocks WHERE user_id = ? AND mode IN ({placeholders})",
+            (user_id, *LOCKED_MODES),
         )
         conn.commit()
-        return True, "Paid modes locked (Normal–Impossible)."
+        return True, "Paid modes locked (Normal–Family)."
     finally:
         conn.close()
 
@@ -2144,6 +2307,288 @@ CHAT_PAGE = 80
 _CHAT_URL_RE = re.compile(r"https?://|www\.", re.I)
 
 
+def _ensure_review_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS review_words (
+            user_id INTEGER NOT NULL,
+            mode TEXT NOT NULL,
+            word TEXT NOT NULL,
+            hits INTEGER NOT NULL DEFAULT 1,
+            last_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (user_id, mode, word),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_review_user_time ON review_words(user_id, last_at)"
+    )
+
+
+def record_review_word(user_id: int, mode: str, word: str) -> None:
+    """Remember a correctly answered word for later review mix."""
+    w = (word or "").strip().lower()[:48]
+    if not w or mode not in ALL_MODES:
+        return
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO review_words (user_id, mode, word, hits, last_at)
+            VALUES (?, ?, ?, 1, datetime('now'))
+            ON CONFLICT(user_id, mode, word) DO UPDATE SET
+                hits = hits + 1,
+                last_at = datetime('now')
+            """,
+            (int(user_id), mode, w),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_review_words(user_id: int, mode: str, limit: int = 40) -> list[str]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT word FROM review_words
+            WHERE user_id = ? AND mode = ?
+            ORDER BY last_at DESC
+            LIMIT ?
+            """,
+            (int(user_id), mode, int(limit)),
+        ).fetchall()
+        return [str(r["word"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_recent_review_words(user_id: int, limit: int = 16) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT word, mode, hits, last_at
+            FROM review_words
+            WHERE user_id = ?
+            ORDER BY last_at DESC
+            LIMIT ?
+            """,
+            (int(user_id), int(limit)),
+        ).fetchall()
+        return [
+            {
+                "word": r["word"],
+                "mode": r["mode"],
+                "hits": int(r["hits"] or 1),
+                "last_at": r["last_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+BADGE_DEFS = (
+    {"id": "first_star", "emoji": "⭐", "label": "First star"},
+    {"id": "heart", "emoji": "❤️", "label": "I like words"},
+    {"id": "streak3", "emoji": "🔥", "label": "3-day streak"},
+    {"id": "ten", "emoji": "📚", "label": "10 words"},
+    {"id": "daily", "emoji": "🌞", "label": "Word of the day"},
+    {"id": "space", "emoji": "🚀", "label": "Space catcher"},
+    {"id": "shopper", "emoji": "👕", "label": "Dressed up"},
+)
+
+
+def _ensure_badge_tables(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_badges (
+            user_id INTEGER NOT NULL,
+            badge_id TEXT NOT NULL,
+            earned_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (user_id, badge_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS daily_word (
+            user_id INTEGER NOT NULL,
+            day TEXT NOT NULL,
+            word TEXT NOT NULL,
+            UNIQUE (user_id, day),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def grant_badge(user_id: int, badge_id: str) -> bool:
+    ids = {b["id"] for b in BADGE_DEFS}
+    if badge_id not in ids:
+        return False
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            INSERT OR IGNORE INTO user_badges (user_id, badge_id)
+            VALUES (?, ?)
+            """,
+            (int(user_id), badge_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_user_badges(user_id: int) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT badge_id, earned_at FROM user_badges
+            WHERE user_id = ?
+            """,
+            (int(user_id),),
+        ).fetchall()
+        have = {r["badge_id"]: r["earned_at"] for r in rows}
+    finally:
+        conn.close()
+    out = []
+    for b in BADGE_DEFS:
+        out.append({**b, "earned": b["id"] in have, "earned_at": have.get(b["id"])})
+    return out
+
+
+def refresh_badges(user_id: int) -> None:
+    scores = get_user_scores(user_id)
+    total = sum(int(v or 0) for v in scores.values())
+    if total > 0:
+        grant_badge(user_id, "first_star")
+    likes = get_word_likes(user_id)
+    if likes["liked"]:
+        grant_badge(user_id, "heart")
+    prog = get_user_progress(user_id)
+    if int(prog.get("streak") or 0) >= 3:
+        grant_badge(user_id, "streak3")
+    conn = get_connection()
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) AS c FROM review_words WHERE user_id = ?",
+            (int(user_id),),
+        ).fetchone()
+        inv = conn.execute(
+            "SELECT COUNT(*) AS c FROM inventory WHERE user_id = ?",
+            (int(user_id),),
+        ).fetchone()
+    finally:
+        conn.close()
+    if n and int(n["c"] or 0) >= 10:
+        grant_badge(user_id, "ten")
+    if inv and int(inv["c"] or 0) >= 4:
+        grant_badge(user_id, "shopper")
+
+
+def claim_daily_word(user_id: int, word: str) -> bool:
+    """True if this is the first time today they got the daily word right."""
+    w = (word or "").strip().lower()
+    if not w:
+        return False
+    day = _today()
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT word FROM daily_word WHERE user_id = ? AND day = ?",
+            (int(user_id), day),
+        ).fetchone()
+        if row:
+            conn.commit()
+            return False
+        conn.execute(
+            "INSERT INTO daily_word (user_id, day, word) VALUES (?, ?, ?)",
+            (int(user_id), day, w),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def daily_word_done(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM daily_word WHERE user_id = ? AND day = ?",
+            (int(user_id), _today()),
+        ).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
+
+def _ensure_likes_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS word_likes (
+            user_id INTEGER NOT NULL,
+            word TEXT NOT NULL,
+            liked INTEGER NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (user_id, word),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def set_word_like(user_id: int, word: str, liked: bool) -> None:
+    w = (word or "").strip().lower()[:48]
+    if not w:
+        return
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO word_likes (user_id, word, liked, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id, word) DO UPDATE SET
+                liked = excluded.liked,
+                updated_at = datetime('now')
+            """,
+            (int(user_id), w, 1 if liked else 0),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_word_likes(user_id: int) -> dict:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT word, liked FROM word_likes
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            """,
+            (int(user_id),),
+        ).fetchall()
+        liked = [r["word"] for r in rows if int(r["liked"] or 0) == 1]
+        disliked = [r["word"] for r in rows if int(r["liked"] or 0) == 0]
+        return {"liked": liked, "disliked": disliked}
+    finally:
+        conn.close()
+
+
 def _ensure_chat_table(conn) -> None:
     conn.execute(
         """
@@ -2216,7 +2661,10 @@ def _chat_user_public(row) -> dict:
 
 def sanitize_chat(body: str) -> tuple[bool, str]:
     text = " ".join((body or "").split())
-    text = text.replace("<", "").replace(">", "")
+    # Remove common HTML/Script tags and characters to prevent XSS and injection
+    # Even though Jinja2 escapes, this provides a first layer of defense.
+    for char in ("<", ">", "{", "}", "[", "]", "script", "iframe", "object"):
+        text = text.replace(char, "")
     if not text:
         return False, "Type a message."
     if len(text) > CHAT_MAX_LEN:

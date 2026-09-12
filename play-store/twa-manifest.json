@@ -1,0 +1,39 @@
+{
+  "packageId": "com.wordstars.app",
+  "host": "YOUR-HOST",
+  "name": "Word Stars",
+  "launcherName": "Word Stars",
+  "display": "standalone",
+  "themeColor": "#7C3AED",
+  "themeColorDark": "#4C1D95",
+  "navigationColor": "#7C3AED",
+  "navigationColorDark": "#4C1D95",
+  "backgroundColor": "#C4B5FD",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://YOUR-HOST/static/icons/icon-512.png",
+  "maskableIconUrl": "https://YOUR-HOST/static/icons/icon-512.png",
+  "monochromeIconUrl": "https://YOUR-HOST/static/icons/icon-192.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "8.9",
+  "appVersionCode": 89,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://YOUR-HOST/static/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://YOUR-HOST/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": []
+}

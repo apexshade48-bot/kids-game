@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Teacher{% endblock %}
+{% block body_class %}page-teacher{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-kicker">Offline helper</p>
+  <h1 class="big-title">🦉 Teacher</h1>
+  <p class="subtitle">
+    {% if teacher_ready %}
+    Ready · {{ teacher_model }}
+    {% else %}
+    Teacher is asleep. On this PC run <strong>ollama serve</strong>.
+    {% endif %}
+  </p>
+</section>
+
+<section class="card section-card teacher-card">
+  <div id="teacher-log" class="teacher-log" aria-live="polite">
+    <p class="teacher-bubble teacher-bot">Hi! I help you with English words. Ask me how to say something.</p>
+  </div>
+  <div class="teacher-chips">
+    <button type="button" class="btn btn-ghost btn-small" data-ask="How do I say hello?">Hello</button>
+    <button type="button" class="btn btn-ghost btn-small" data-ask="What does cat mean?">Cat</button>
+    <button type="button" class="btn btn-ghost btn-small" data-ask="How do I say thank you?">Thank you</button>
+    <button type="button" class="btn btn-ghost btn-small" data-ask="Give me a short sentence with I am.">I am</button>
+  </div>
+  <form id="teacher-form" class="teacher-form">
+    <input
+      id="teacher-input"
+      type="text"
+      maxlength="200"
+      autocomplete="off"
+      placeholder="Ask about a word…"
+      {% if word %}value="What does {{ word }} mean?"{% endif %}
+    />
+    <button type="submit" class="btn btn-primary" id="teacher-send">Ask</button>
+  </form>
+  <p id="teacher-status" class="section-desc"></p>
+</section>
+
+<p><a href="{{ url_for('more_page') }}" class="btn btn-ghost">Back to More</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.TEACHER_WORD = {{ (word or '') | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/teacher.js') }}?v={{ app_version }}"></script>
+{% endblock %}
