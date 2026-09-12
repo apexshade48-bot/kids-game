@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — {{ mode_label }}{% endblock %}
+{% block body_class %}page-play{% endblock %}
+
+{% block content %}
+<div
+  id="game-root"
+  data-mode="{{ mode }}"
+  data-points="{{ points_per_word }}"
+  data-words='{{ words | tojson }}'
+  data-score-url="{{ url_for('api_score') }}"
+  data-hint-url="{{ url_for('api_hint') }}"
+  data-hint-cost="{{ hint_cost if hint_cost is defined else 5 }}"
+  data-home-url="{{ url_for('home') }}"
+>
+  <div class="play-header">
+    <a href="{{ url_for('home') }}" class="btn btn-small btn-ghost">← Home</a>
+    <div class="play-meta">
+      <span class="badge">{{ mode_label }}</span>
+      <span id="progress" class="badge badge-soft">1 / {{ words|length }}</span>
+      <span id="round-score" class="badge badge-gold">⭐ 0</span>
+    </div>
+  </div>
+
+  <section id="play-panel" class="play-panel">
+    <div class="word-stage">
+      <div id="word-hint" class="word-hint">✨</div>
+      <div id="target-word" class="target-word">—</div>
+      <p class="coach">Say it (mic) or type it</p>
+    </div>
+
+    <div class="answer-row">
+      <label class="typed-wrap" for="mobile-input">
+        <div id="typed-display" class="typed-display" aria-hidden="true"></div>
+        <input
+          type="text"
+          id="mobile-input"
+          class="mobile-input"
+          autocomplete="off"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="go"
+          inputmode="text"
+          maxlength="12"
+          aria-label="Type your answer"
+          placeholder="Tap to type"
+        />
+      </label>
+      <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear">⌫</button>
+    </div>
+
+    <div class="action-row">
+      <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word">
+        🎤 Say it
+      </button>
+      <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter">
+        💡 Hint
+      </button>
+      <button type="button" id="btn-check" class="btn btn-primary">
+        ✓ Check
+      </button>
+    </div>
+    <p id="voice-status" class="voice-status" aria-live="polite"></p>
+    <p id="feedback" class="feedback" aria-live="assertive"></p>
+
+    <div id="keyboard" class="keyboard" aria-label="Letter keyboard"></div>
+  </section>
+
+  <section id="done-panel" class="done-panel hidden">
+    <div class="card done-card">
+      <div class="done-emoji">🎉</div>
+      <h2>Round complete</h2>
+      <p id="done-summary" class="subtitle"></p>
+      <div class="done-actions">
+        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">Play again</a>
+        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-ghost">Quiz</a>
+        <a href="{{ url_for('home') }}" class="btn btn-ghost">Home</a>
+        <a href="{{ url_for('leaderboard', mode=mode) }}" class="btn btn-ghost">Leaderboard</a>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/game.js') }}?v={{ app_version }}"></script>
+{% endblock %}

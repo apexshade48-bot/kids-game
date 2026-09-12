@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Admin{% endblock %}
+{% block body_class %}page-admin{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">Admin Panel</h1>
+  <p class="subtitle">Full control over players, coins, unlocks, and admins.</p>
+</section>
+
+<section class="admin-stats">
+  <div class="stat-card">
+    <span class="stat-num">{{ stats.total_users }}</span>
+    <span class="stat-label">Players</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ stats.total_coins }}</span>
+    <span class="stat-label">Total coins</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ stats.total_unlocks }}</span>
+    <span class="stat-label">Unlocks</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">{{ stats.total_admins }}</span>
+    <span class="stat-label">Admins</span>
+  </div>
+</section>
+
+<section class="admin-team card">
+  <h2>👑 Admin team</h2>
+  <p class="admin-team-desc">
+    Secondary admins can manage coins, unlocks, and scores.
+    {% if is_owner %}Only you (owner) can add or remove admins. No one can remove your owner admin.{% else %}Only the owner can add or remove admins.{% endif %}
+  </p>
+
+  <div class="admin-team-current">
+    <h3>Current admins</h3>
+    {% if admins %}
+    <ul class="admin-team-list">
+      {% for admin in admins %}
+      <li class="admin-team-member">
+        <span class="admin-team-name">
+          <strong>{{ admin.name }}</strong>
+          {% if admin.id == session.user_id %}<em>(you)</em>{% endif %}
+          {% if admin.is_owner %}<span class="admin-badge">Owner</span>{% endif %}
+        </span>
+        {% if is_owner and not admin.is_owner and admin.id != session.user_id %}
+        <button
+          type="button"
+          class="btn btn-small btn-demote-admin"
+          data-user-id="{{ admin.id }}"
+          data-name="{{ admin.name }}"
+        >
+          Remove admin
+        </button>
+        {% elif admin.is_owner %}
+        <span class="admin-team-you">Protected</span>
+        {% else %}
+        <span class="admin-team-you">Admin</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="admin-team-empty">No admins found.</p>
+    {% endif %}
+  </div>
+
+  {% if is_owner %}
+  <div class="admin-team-assign">
+    <h3>Assign new admin</h3>
+    {% set non_admins = users | selectattr('is_admin', 'equalto', false) | list %}
+    {% if non_admins %}
+    <div class="admin-assign-grid">
+      {% for user in non_admins %}
+      <div class="admin-assign-row">
+        <span>{{ user.name }}</span>
+        <button
+          type="button"
+          class="btn btn-small btn-promote-admin"
+          data-user-id="{{ user.id }}"
+          data-name="{{ user.name }}"
+        >
+          Make admin
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-team-empty">Every player is already an admin.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="admin-users card">
+  <h2>All players</h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Role</th>
+          <th>Coins</th>
+          <th>Today</th>
+          <th>Streak</th>
+          <th>Stars</th>
+          <th>Unlocks</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr data-user-id="{{ user.id }}" class="{% if user.is_admin %}is-admin{% endif %}">
+          <td>
+            <strong>{{ user.name }}</strong>
+            {% if user.id == session.user_id %}<em>you</em>{% endif %}
+          </td>
+          <td>
+            {% if user.is_owner %}
+            <span class="admin-badge">Owner</span>
+            {% elif user.is_admin %}
+            <span class="admin-badge">Admin</span>
+            {% else %}
+            <span class="player-badge">Player</span>
+            {% endif %}
+          </td>
+          <td>
+            <input
+              type="number"
+              class="admin-coins-input"
+              value="{{ user.coins }}"
+              min="0"
+              data-user-id="{{ user.id }}"
+            />
+            <button type="button" class="btn btn-small btn-save-coins" data-user-id="{{ user.id }}">Save</button>
+          </td>
+          <td class="admin-progress">
+            {% if user.progress %}
+            ✅ {{ user.progress.today.correct }}
+            · 🪙 {{ user.progress.today.coins_earned }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="admin-streak">
+            {% if user.progress %}🔥 {{ user.progress.streak }}{% else %}0{% endif %}
+          </td>
+          <td class="admin-stars">
+            🟢 {{ user.scores.easy }}
+            🟡 {{ user.scores.normal }}
+            🔴 {{ user.scores.hard }}
+            💎 {{ user.scores.top }}
+          </td>
+          <td class="admin-unlocks">
+            {% if 'normal' in user.unlocked %}
+            <button type="button" class="btn btn-small btn-lock-mode" data-user-id="{{ user.id }}" data-mode="normal" title="Lock Normal">🔒 Normal</button>
+            {% else %}
+            <button type="button" class="btn btn-small btn-grant-unlock" data-user-id="{{ user.id }}" data-mode="normal">+Normal</button>
+            {% endif %}
+            {% if 'hard' in user.unlocked %}
+            <button type="button" class="btn btn-small btn-lock-mode" data-user-id="{{ user.id }}" data-mode="hard" title="Lock Hard">🔒 Hard</button>
+            {% else %}
+            <button type="button" class="btn btn-small btn-grant-unlock" data-user-id="{{ user.id }}" data-mode="hard">+Hard</button>
+            {% endif %}
+            {% if 'top' in user.unlocked %}
+            <button type="button" class="btn btn-small btn-lock-mode" data-user-id="{{ user.id }}" data-mode="top" title="Lock Top">🔒 Top</button>
+            {% else %}
+            <button type="button" class="btn btn-small btn-grant-unlock" data-user-id="{{ user.id }}" data-mode="top">+Top</button>
+            {% endif %}
+          </td>
+          <td class="admin-actions">
+            {% if is_owner and not user.is_admin %}
+            <button type="button" class="btn btn-small btn-promote-admin" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Make admin</button>
+            {% elif is_owner and user.is_admin and not user.is_owner and user.id != session.user_id %}
+            <button type="button" class="btn btn-small btn-demote-admin" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Remove admin</button>
+            {% endif %}
+            {% set has_paid = ('normal' in user.unlocked) or ('hard' in user.unlocked) or ('top' in user.unlocked) %}
+            {% if has_paid %}
+            <button type="button" class="btn btn-small btn-danger btn-lock-all" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Lock N/H/Top</button>
+            {% endif %}
+            <button type="button" class="btn btn-small btn-reset-password" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Reset password</button>
+            <button type="button" class="btn btn-small btn-reset-scores" data-user-id="{{ user.id }}">Reset stars</button>
+            {% if not user.is_admin and user.id != session.user_id %}
+            <button type="button" class="btn btn-small btn-danger btn-delete-user" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Delete</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<p id="admin-status" class="admin-status" aria-live="polite"></p>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}?v={{ app_version }}"></script>
+{% endblock %}

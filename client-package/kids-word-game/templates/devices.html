@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Play on Any Device{% endblock %}
+{% block body_class %}page-devices{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">📱 Play on any device</h1>
+  <p class="subtitle">Tablet, phone, laptop — same game, same account.</p>
+</section>
+
+<div class="card device-card">
+  <h2>Important</h2>
+  <p class="device-lead">
+    Word Stars is <strong>not</strong> a file you copy. The game runs on a computer
+    that stays on, and your tablet or phone opens it in the browser.
+  </p>
+
+  <ol class="device-steps">
+    <li>On the computer, keep <code>python app.py</code> running (window stays open)</li>
+    <li>Connect tablet/phone to the <strong>same Wi‑Fi</strong> as this computer (not mobile data)</li>
+    <li>On the tablet, open <strong>Chrome</strong> or <strong>Safari</strong></li>
+    <li>Type one of these links exactly (do <strong>not</strong> use localhost on the tablet):</li>
+  </ol>
+
+  {% if device_urls %}
+  <ul class="device-url-list">
+    {% for url in device_urls %}
+    <li>
+      <a href="{{ url }}" class="device-url">{{ url }}</a>
+      <button type="button" class="btn btn-small btn-copy-url" data-url="{{ url }}">Copy</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="device-note">Could not detect your Wi‑Fi address. Ask a grown-up to find the computer's IP (e.g. 192.168.1.5) and open <strong>http://YOUR-IP:{{ port }}</strong></p>
+  {% endif %}
+
+  <div class="device-note">
+    <strong>If the tablet cannot open the link:</strong>
+    <ul class="device-tips">
+      <li>PC and tablet must be on the same Wi‑Fi name</li>
+      <li>Keep the black server window open on the PC</li>
+      <li>Type <code>http://</code> at the start (not https)</li>
+      <li>Some routers block “device to device” — try turning off Guest Wi‑Fi / AP isolation</li>
+      <li>Windows Firewall must allow Python / port {{ port }} (start-client.bat does this)</li>
+    </ul>
+  </div>
+
+  <h3>Tips</h3>
+  <ul class="device-tips">
+    <li><strong>Voice:</strong> often blocked on plain Wi‑Fi HTTP — use typing or letter keys on tablet.</li>
+    <li><strong>Typing:</strong> tap the answer box or use the on-screen A–Z keys.</li>
+    <li><strong>Add to Home Screen:</strong> browser menu → “Add to Home Screen”.</li>
+    <li><strong>Same account:</strong> log in with the same name and password on every device.</li>
+  </ul>
+
+  <a href="{{ url_for('login') }}" class="btn btn-primary btn-block">Back to login</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".btn-copy-url").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var url = btn.dataset.url;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () {
+        btn.textContent = "Copied!";
+        setTimeout(function () { btn.textContent = "Copy"; }, 2000);
+      });
+    } else {
+      prompt("Copy this link:", url);
+    }
+  });
+});
+</script>
+{% endblock %}
