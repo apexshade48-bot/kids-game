@@ -47,6 +47,21 @@
     <span class="more-title">Space</span>
     <span class="more-sub">Catch letters</span>
   </a>
+  <a href="{{ url_for('lucky_spin_page') }}" class="more-tile">
+    <span class="more-emoji">🎡</span>
+    <span class="more-title">Spin</span>
+    <span class="more-sub">Lucky wheel</span>
+  </a>
+  <a href="{{ url_for('chat_page') }}" class="more-tile">
+    <span class="more-emoji">💬</span>
+    <span class="more-title">Chat</span>
+    <span class="more-sub">Talk to family</span>
+  </a>
+  <a href="{{ url_for('leaderboard') }}" class="more-tile">
+    <span class="more-emoji">🏆</span>
+    <span class="more-title">Board</span>
+    <span class="more-sub">Top players</span>
+  </a>
   {% if is_admin %}
   <a href="{{ url_for('admin_panel') }}" class="more-tile">
     <span class="more-emoji">🛠️</span>

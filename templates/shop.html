@@ -19,7 +19,7 @@
 
 <p id="shop-status" class="feedback" aria-live="polite"></p>
 
-<div class="tabs mode-tabs shop-tabs" role="tablist">
+<div class="tabs mode-tabs mode-tabs-scroll shop-tabs" role="tablist">
   <button type="button" class="tab active" data-slot="shirt">👕 Shirts</button>
   <button type="button" class="tab" data-slot="pants">👖 Pants</button>
   <button type="button" class="tab" data-slot="hat">✨ Accessories</button>
@@ -59,7 +59,7 @@
     <h3>{{ item.emoji }} {{ item.label }}</h3>
     <p class="shop-blurb">{{ item.blurb }}</p>
     {% if item.admin_set %}
-    <p class="shop-legendary-tag">⚡ Admin · only 2 players · {{ item.owner_count }}/{{ item.owner_limit }}</p>
+    <p class="shop-legendary-tag{% if item.can_buy %} is-scarce{% endif %}">⚡ Admin · only 2 players · {{ item.owner_count }}/{{ item.owner_limit }}</p>
     {% elif item.legendary %}
     <p class="shop-legendary-tag">🏆 Legendary</p>
     {% endif %}
@@ -120,7 +120,10 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="section-desc">Buy extra clothes first, then you can sell them here.</p>
+    <div class="empty-state">
+      <span class="empty-state-emoji">👕</span>
+      <p class="empty-state-text">Buy extra clothes first, then you can sell them here.</p>
+    </div>
     {% endif %}
   </div>
 
@@ -152,7 +155,10 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="section-desc">No player sales yet. List something above!</p>
+  <div class="empty-state">
+    <span class="empty-state-emoji">🤝</span>
+    <p class="empty-state-text">No player sales yet. List something above!</p>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

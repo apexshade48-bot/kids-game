@@ -34,13 +34,6 @@
     <div class="word-stage">
       <div id="word-hint" class="word-hint{% if hide_word %} word-hint-focus{% endif %}">✨</div>
       <div id="target-word" class="target-word{% if speak_focus %} target-phrase{% endif %}{% if hide_word %} is-hidden{% endif %}">—</div>
-      <div id="like-bar" class="like-bar hidden">
-        <p class="like-ask">Do you like this word?</p>
-        <div class="like-actions">
-          <button type="button" class="btn like-yes" data-like="1">❤️ I like it</button>
-          <button type="button" class="btn like-no" data-like="0">🙈 Not this one</button>
-        </div>
-      </div>
       <p id="explain-box" class="explain-box hidden" aria-live="polite"></p>
       <p class="coach" id="play-coach">
         {% if speak_focus %}
@@ -74,20 +67,17 @@
       <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear">⌫</button>
     </div>
 
-    <div class="action-row">
-      <button type="button" id="btn-hear-slow" class="btn btn-ghost btn-small" title="Hear it slow">🐢 Slow</button>
+    <div class="hear-group">
+      <button type="button" id="btn-hear-slow" class="btn btn-ghost btn-small btn-speed" title="Hear it slow">🐢</button>
       <button type="button" id="btn-hear" class="btn btn-hear" title="Hear the word">
         🔊 Hear it
       </button>
-      <button type="button" id="btn-hear-fast" class="btn btn-ghost btn-small" title="Hear it fast">🐇 Fast</button>
-      <button type="button" id="btn-echo" class="btn btn-ghost" title="Say it with the voice">
-        🗣️ Echo
-      </button>
+      <button type="button" id="btn-hear-fast" class="btn btn-ghost btn-small btn-speed" title="Hear it fast">🐇</button>
+    </div>
+
+    <div class="action-row">
       <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word">
         🎤 Say it
-      </button>
-      <button type="button" id="btn-explain" class="btn btn-ghost btn-small" title="Teacher explains this word">
-        🦉 Explain
       </button>
       {% if hide_word %}
       <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter">
@@ -96,6 +86,15 @@
       {% endif %}
       <button type="button" id="btn-check" class="btn btn-primary">
         ✓ Check
+      </button>
+    </div>
+
+    <div class="action-row-utility">
+      <button type="button" id="btn-echo" class="btn btn-ghost btn-small" title="Say it with the voice">
+        🗣️ Echo
+      </button>
+      <button type="button" id="btn-explain" class="btn btn-ghost btn-small" title="Teacher explains this word">
+        🦉 Explain
       </button>
       <a id="btn-teacher" class="btn btn-ghost btn-small" href="{{ url_for('teacher_page') }}">🦉 Teacher</a>
     </div>

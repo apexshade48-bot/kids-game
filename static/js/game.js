@@ -23,23 +23,40 @@
     el.classList.add(cls);
   }
 
-  function burst(host) {
+  function burst(host, big) {
     if (!host) return;
     var bits = ["⭐", "✨", "🎉", "💛", "🌟"];
+    var count = big ? 22 : 10;
+    var spread = big ? 260 : 200;
+    var rise = big ? 160 : 100;
     var i;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < count; i++) {
       (function (n) {
-        var s = document.createElement("span");
-        s.className = "fx-star";
-        s.textContent = bits[n % bits.length];
-        s.style.setProperty("--dx", Math.round(Math.random() * 200 - 100) + "px");
-        s.style.setProperty("--dy", Math.round(-24 - Math.random() * 100) + "px");
-        s.style.setProperty("--rot", Math.round(Math.random() * 80 - 40) + "deg");
-        host.appendChild(s);
+        var delay = big ? Math.round(Math.random() * 180) : 0;
         window.setTimeout(function () {
-          if (s.parentNode) s.parentNode.removeChild(s);
-        }, 850);
+          var s = document.createElement("span");
+          s.className = "fx-star";
+          s.textContent = bits[n % bits.length];
+          var scale = (0.85 + Math.random() * 0.5).toFixed(2);
+          s.style.setProperty("--dx", Math.round(Math.random() * spread - spread / 2) + "px");
+          s.style.setProperty("--dy", Math.round(-24 - Math.random() * rise) + "px");
+          s.style.setProperty("--rot", Math.round(Math.random() * 80 - 40) + "deg");
+          s.style.setProperty("--scale", scale);
+          if (big) {
+            s.style.left = Math.round(20 + Math.random() * 60) + "%";
+            s.style.fontSize = (1 + Math.random() * 0.6) + "rem";
+          }
+          host.appendChild(s);
+          window.setTimeout(function () {
+            if (s.parentNode) s.parentNode.removeChild(s);
+          }, 850);
+        }, delay);
       })(i);
+    }
+    if (big && window.navigator && typeof window.navigator.vibrate === "function") {
+      try {
+        window.navigator.vibrate([30, 40, 60]);
+      } catch (e) {}
     }
   }
 
@@ -275,47 +292,6 @@
     if (teach && item.word) {
       teach.setAttribute("href", "/teacher?word=" + encodeURIComponent(item.word));
     }
-    var likeBar = document.getElementById("like-bar");
-    if (likeBar) likeBar.classList.add("hidden");
-  }
-
-  function askLikeThen(nextFn) {
-    var item = current();
-    var bar = document.getElementById("like-bar");
-    var finished = false;
-    function finish() {
-      if (finished) return;
-      finished = true;
-      if (bar) bar.classList.add("hidden");
-      nextFn();
-    }
-    if (!bar || !item) {
-      window.setTimeout(finish, 500);
-      return;
-    }
-    bar.classList.remove("hidden");
-    ping(bar, "pop-in");
-    bar.querySelectorAll("[data-like]").forEach(function (btn) {
-      btn.onclick = function () {
-        var liked = btn.getAttribute("data-like") === "1";
-        fetch("/api/word-like", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            "X-Requested-With": "XMLHttpRequest",
-          },
-          credentials: "same-origin",
-          body: JSON.stringify({ word: item.word, liked: liked }),
-        }).catch(function () {});
-        if (liked) {
-          var stage = document.querySelector(".word-stage");
-          burst(stage);
-        }
-        finish();
-      };
-    });
-    window.setTimeout(finish, 7000);
   }
 
   function bindKey(btn, insert) {
@@ -446,14 +422,12 @@
     window.setTimeout(function () {
       if (els.targetWord) els.targetWord.classList.remove("celebrate");
       if (els.roundScore) els.roundScore.classList.remove("score-pop");
-      askLikeThen(function () {
-        index += 1;
-        if (index >= words.length) {
-          finishRound();
-        } else {
-          showWord();
-        }
-      });
+      index += 1;
+      if (index >= words.length) {
+        finishRound();
+      } else {
+        showWord();
+      }
     }, 650);
   }
 
@@ -571,7 +545,7 @@
     els.playPanel.classList.add("hidden");
     els.donePanel.classList.remove("hidden");
     ping(els.donePanel, "win-in");
-    burst(els.donePanel);
+    burst(els.donePanel, true);
     if (sfx && sfx.win) sfx.win();
     els.doneSummary.textContent =
       "You got " +

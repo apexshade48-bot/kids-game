@@ -22,41 +22,6 @@
     el.classList.add(cls);
   }
 
-  function askLikeThen(word, nextFn) {
-    var bar = document.getElementById("like-bar");
-    var finished = false;
-    function finish() {
-      if (finished) return;
-      finished = true;
-      if (bar) bar.classList.add("hidden");
-      nextFn();
-    }
-    if (!bar || !word) {
-      window.setTimeout(finish, 400);
-      return;
-    }
-    bar.classList.remove("hidden");
-    ping(bar, "pop-in");
-    bar.querySelectorAll("[data-like]").forEach(function (btn) {
-      btn.onclick = function () {
-        var liked = btn.getAttribute("data-like") === "1";
-        fetch("/api/word-like", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            "X-Requested-With": "XMLHttpRequest",
-          },
-          credentials: "same-origin",
-          body: JSON.stringify({ word: word, liked: liked }),
-        }).catch(function () {});
-        if (liked) burst(document.querySelector(".word-stage"));
-        finish();
-      };
-    });
-    window.setTimeout(finish, 7000);
-  }
-
   function burst(host) {
     if (!host) return;
     var bits = ["⭐", "✨", "🎉", "💛"];
@@ -154,8 +119,6 @@
     busy = false;
     els.feedback.textContent = "";
     els.feedback.className = "feedback";
-    var likeBar = document.getElementById("like-bar");
-    if (likeBar) likeBar.classList.add("hidden");
     els.hint.textContent = q.hint || "✨";
     ping(els.hint, "word-in");
     ping(els.blankWord, "word-in");
@@ -312,9 +275,7 @@
       }
     }
     if (got === want) {
-      window.setTimeout(function () {
-        askLikeThen(q.word, goNext);
-      }, 500);
+      window.setTimeout(goNext, 650);
     } else {
       window.setTimeout(goNext, 1100);
     }

@@ -37,7 +37,8 @@
         });
         const data = await parseJsonResponse(res);
         if (!res.ok) {
-          alert(data.error || "Could not unlock.");
+          if (window.WordStarsToast) window.WordStarsToast.show(data.error || "Could not unlock.", "bad");
+          else alert(data.error || "Could not unlock.");
           btn.disabled = false;
           btn.textContent = "Unlock for 🪙 " + cost;
           return;
@@ -49,6 +50,7 @@
         ) {
           coinBalance.textContent = data.wallet.coins;
         }
+        if (window.WordStarsSFX && window.WordStarsSFX.unlock) window.WordStarsSFX.unlock();
         window.location.reload();
       } catch (e) {
         var msg = e.message || "Something went wrong — try again!";
@@ -56,7 +58,8 @@
           msg =
             "Cannot reach the server. On the PC run: python app.py — then reload this page.";
         }
-        alert(msg);
+        if (window.WordStarsToast) window.WordStarsToast.show(msg, "bad", 4000);
+        else alert(msg);
         btn.disabled = false;
         btn.textContent = "Unlock for 🪙 " + cost;
       }

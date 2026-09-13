@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Word Stars</string>
     <!-- Change this to your live HTTPS site, no trailing slash. Example: https://word-stars.onrender.com -->
-    <string name="game_url">http://192.168.100.27:5000</string>
+    <string name="game_url">https://apexshade.pythonanywhere.com</string>
 </resources>

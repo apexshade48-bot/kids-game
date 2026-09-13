@@ -22,6 +22,16 @@ SYSTEM = (
 )
 
 
+def list_models(host: str | None = None) -> list[str]:
+    url = (host or DEFAULT_HOST) + "/api/tags"
+    try:
+        with urllib.request.urlopen(url, timeout=2) as res:
+            data = json.loads(res.read().decode("utf-8"))
+            return [m.get("name") or m.get("model") for m in data.get("models") or []]
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+        return []
+
+
 def ping(host: str | None = None) -> bool:
     url = (host or DEFAULT_HOST) + "/api/tags"
     try:
@@ -29,6 +39,25 @@ def ping(host: str | None = None) -> bool:
             return 200 <= res.status < 300
     except (urllib.error.URLError, TimeoutError, OSError):
         return False
+
+
+def _resolve_model(host: str | None, requested: str | None) -> tuple[str | None, str | None]:
+    """Pick a model that's actually installed. The configured default
+    (llama3.2:3b) may not be the one the person actually pulled — fall back
+    to whatever IS installed instead of failing outright."""
+    wanted = requested or DEFAULT_MODEL
+    available = list_models(host)
+    if not available:
+        return None, "No Ollama model is installed. Run: ollama pull llama3.2:3b"
+    if wanted in available:
+        return wanted, None
+    # Exact tag (e.g. "llama3.2:3b") may differ from an installed "llama3.2:latest" —
+    # match on the name before the colon before giving up and falling back.
+    base = wanted.split(":")[0]
+    for name in available:
+        if name and name.split(":")[0] == base:
+            return name, None
+    return available[0], None
 
 
 def ask(
@@ -45,6 +74,10 @@ def ask(
     if w:
         text = f"The word we are practicing is: {w}. {text}"
 
+    resolved_model, resolve_error = _resolve_model(host, model)
+    if resolve_error:
+        return False, resolve_error
+
     messages = [{"role": "system", "content": SYSTEM}]
     for turn in (history or [])[-6:]:
         role = turn.get("role")
@@ -55,7 +88,7 @@ def ask(
 
     body = json.dumps(
         {
-            "model": model or DEFAULT_MODEL,
+            "model": resolved_model,
             "messages": messages,
             "stream": False,
             "options": {"temperature": 0.4, "num_predict": 90},
@@ -68,11 +101,21 @@ def ask(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as res:
+        with urllib.request.urlopen(req, timeout=45) as res:
             data = json.loads(res.read().decode("utf-8"))
-    except urllib.error.HTTPError:
-        return False, "Teacher could not answer. Is Ollama running?"
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except TimeoutError:
+        return False, (
+            f"'{resolved_model}' is too slow to answer quickly. "
+            "Try a smaller model: ollama pull llama3.2:3b"
+        )
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = json.loads(e.read().decode("utf-8")).get("error", "")
+        except Exception:
+            pass
+        return False, ("Teacher hit an error: " + detail) if detail else "Teacher could not answer. Try again."
+    except (urllib.error.URLError, OSError):
         return False, "Teacher is asleep. On this PC run: ollama serve"
     except json.JSONDecodeError:
         return False, "Teacher sent a mixed-up answer. Try again."

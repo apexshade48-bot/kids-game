@@ -35,6 +35,7 @@
 {% if badges %}
 <section class="card section-card js-reveal">
   <h2>🏅 My stickers</h2>
+  {% if badges|selectattr('earned')|list %}
   <div class="badge-row">
     {% for b in badges %}
     <span class="kid-badge {% if b.earned %}is-on{% else %}is-off{% endif %}" title="{{ b.label }}">
@@ -43,12 +44,18 @@
     </span>
     {% endfor %}
   </div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-state-emoji">🏅</span>
+    <p class="empty-state-text">No stickers yet — play a round to earn your first one!</p>
+  </div>
+  {% endif %}
 </section>
 {% endif %}
 
-{% if favorites %}
 <section class="card section-card fav-strip js-reveal">
   <h2>❤️ Words I like</h2>
+  {% if favorites %}
   <p class="section-desc">You picked these. We will show them more.</p>
   <p><a href="{{ url_for('play', mode='easy') }}?pack=likes" class="btn btn-ghost btn-small">▶ Play words I like</a></p>
   <div class="fav-stickers">
@@ -59,15 +66,20 @@
     </span>
     {% endfor %}
   </div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-state-emoji">❤️</span>
+    <p class="empty-state-text">Tap ❤️ on a word while you play to save it here.</p>
+  </div>
+  {% endif %}
 </section>
-{% endif %}
 
 <section class="home-stats home-stats-compact js-reveal" aria-label="Your stats">
   <div class="stat-card stat-coins">
     <span class="stat-num" id="coin-balance">{{ wallet.coins }}</span>
     <span class="stat-label">Coins</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card{% if progress.streak >= 3 %} stat-streak-hot{% endif %}">
     <span class="stat-num">🔥 {{ progress.streak }}</span>
     <span class="stat-label">Day streak</span>
   </div>

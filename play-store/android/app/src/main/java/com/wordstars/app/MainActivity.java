@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -30,6 +32,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        WebView.setWebContentsDebuggingEnabled(true);
 
         prefs = getSharedPreferences("wordstars", MODE_PRIVATE);
         String saved = prefs.getString("url", getString(R.string.game_url));
@@ -71,6 +75,9 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setTextZoom(100);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -88,6 +95,12 @@ public class MainActivity extends Activity {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 request.grant(request.getResources());
+            }
+
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage cm) {
+                Log.d("WordStarsWeb", cm.message() + " -- " + cm.sourceId() + ":" + cm.lineNumber());
+                return true;
             }
         });
 

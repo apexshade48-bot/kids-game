@@ -441,11 +441,13 @@ def api_set_aura():
 def teacher_page():
     if not login_required():
         return redirect(url_for("login"))
+    ready = ollama_teacher.ping()
+    models = ollama_teacher.list_models() if ready else []
     return render_template(
         "teacher.html",
         name=session.get("user_name", "Friend"),
-        teacher_ready=ollama_teacher.ping(),
-        teacher_model=ollama_teacher.DEFAULT_MODEL,
+        teacher_ready=ready and bool(models),
+        teacher_model=(models[0] if models else ollama_teacher.DEFAULT_MODEL),
         word=(request.args.get("word") or "").strip().lower()[:48],
     )
 
@@ -792,6 +794,13 @@ def api_chat_list():
         session["user_id"], with_user_id=with_id, after_id=after_id
     )
     return jsonify({"ok": True, "messages": messages})
+
+
+@app.route("/api/chat/unread", methods=["GET"])
+def api_chat_unread():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    return jsonify(db.get_unread_dm_status(session["user_id"]))
 
 
 @app.route("/api/chat", methods=["POST"])

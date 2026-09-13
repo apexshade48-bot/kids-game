@@ -95,19 +95,7 @@
         <span class="nav-icon">⚔️</span>
         <span>Battle</span>
       </a>
-      <a href="{{ url_for('lucky_spin_page') }}" class="nav-item {% if request.endpoint == 'lucky_spin_page' %}active{% endif %}">
-        <span class="nav-icon">🎡</span>
-        <span>Spin</span>
-      </a>
-      <a href="{{ url_for('chat_page') }}" class="nav-item {% if request.endpoint == 'chat_page' %}active{% endif %}">
-        <span class="nav-icon">💬</span>
-        <span>Chat</span>
-      </a>
-      <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
-        <span class="nav-icon">🏆</span>
-        <span>Board</span>
-      </a>
-      <a href="{{ url_for('more_page') }}" class="nav-item {% if request.endpoint in ('more_page', 'settings_page', 'parent_sheet', 'player_profile', 'admin_panel', 'hacker_panel', 'apex_shade', 'teacher_page') %}active{% endif %}">
+      <a href="{{ url_for('more_page') }}" class="nav-item {% if request.endpoint in ('more_page', 'settings_page', 'parent_sheet', 'player_profile', 'admin_panel', 'hacker_panel', 'apex_shade', 'teacher_page', 'lucky_spin_page', 'chat_page', 'leaderboard') %}active{% endif %}">
         <span class="nav-icon">📁</span>
         <span>More</span>
       </a>
@@ -118,6 +106,11 @@
   <script src="{{ url_for('static', filename='js/device.js') }}?v={{ app_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}?v={{ app_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/motion.js') }}?v={{ app_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/toast.js') }}?v={{ app_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}" defer></script>
+  {% if session.get('user_id') %}
+  <script src="{{ url_for('static', filename='js/chat-watch.js') }}?v={{ app_version }}" defer></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
   <script>
     if ("serviceWorker" in navigator) {

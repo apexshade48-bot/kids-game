@@ -40,6 +40,13 @@
         }
         if (data.message) {
           try {
+            if (window.WordStarsToast) {
+              window.WordStarsToast.show(data.message, "ok", 1600);
+              window.setTimeout(function () {
+                window.location.href = data.redirect || "/home";
+              }, 900);
+              return;
+            }
             window.alert(data.message);
           } catch (e) {}
         }

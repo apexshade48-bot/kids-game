@@ -2679,9 +2679,16 @@ def get_chat_messages(
 ) -> list[dict]:
     conn = get_connection()
     try:
+        # On a fresh page load (after_id=0) a long-running conversation can
+        # have far more than CHAT_PAGE messages — ORDER BY id ASC LIMIT would
+        # return the OLDEST page instead of the recent tail the kid actually
+        # wants to see, making it look like the conversation "lost" messages
+        # on return. Grab the most recent page, then re-sort ascending for
+        # display. Live polling (after_id > 0) is unaffected and stays ASC.
+        order = "DESC" if after_id <= 0 else "ASC"
         if with_user_id:
             rows = conn.execute(
-                """
+                f"""
                 SELECT m.id, m.sender_id, m.to_user_id, m.body, m.created_at,
                        u.name, u.equipped_name, u.id AS user_id
                 FROM chat_messages m
@@ -2692,7 +2699,7 @@ def get_chat_messages(
                 )
                   AND m.id > ?
                   AND COALESCE(u.is_banned, 0) = 0
-                ORDER BY m.id ASC
+                ORDER BY m.id {order}
                 LIMIT ?
                 """,
                 (
@@ -2706,7 +2713,7 @@ def get_chat_messages(
             ).fetchall()
         else:
             rows = conn.execute(
-                """
+                f"""
                 SELECT m.id, m.sender_id, m.to_user_id, m.body, m.created_at,
                        u.name, u.equipped_name, u.id AS user_id
                 FROM chat_messages m
@@ -2714,11 +2721,13 @@ def get_chat_messages(
                 WHERE m.to_user_id IS NULL
                   AND m.id > ?
                   AND COALESCE(u.is_banned, 0) = 0
-                ORDER BY m.id ASC
+                ORDER BY m.id {order}
                 LIMIT ?
                 """,
                 (after_id, CHAT_PAGE),
             ).fetchall()
+        if order == "DESC":
+            rows = list(reversed(rows))
         out = []
         for r in rows:
             msg = _chat_user_public(r)
@@ -2734,6 +2743,31 @@ def get_chat_messages(
             )
             out.append(msg)
         return out
+    finally:
+        conn.close()
+
+
+def get_unread_dm_status(user_id: int) -> dict:
+    """Highest direct-message id addressed to this user, for a lightweight
+    site-wide "new message" notification (not a full read-receipt system —
+    good enough for a kid chatting with one or two friends/siblings)."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT m.id, u.name
+            FROM chat_messages m
+            JOIN users u ON u.id = m.sender_id
+            WHERE m.to_user_id = ?
+              AND COALESCE(u.is_banned, 0) = 0
+            ORDER BY m.id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return {"max_id": 0, "from_name": None}
+        return {"max_id": int(row["id"]), "from_name": row["name"]}
     finally:
         conn.close()
 

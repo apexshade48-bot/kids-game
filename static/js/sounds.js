@@ -56,5 +56,18 @@
     click: function () {
       beep(800, 0.04, "sine", 0.05);
     },
+    coin: function () {
+      beep(880, 0.08, "sine", 0.1);
+      setTimeout(function () {
+        beep(1174.66, 0.12, "sine", 0.1);
+      }, 70);
+    },
+    unlock: function () {
+      [587.33, 739.99, 932.33, 1174.66].forEach(function (f, i) {
+        setTimeout(function () {
+          beep(f, 0.16, "triangle", 0.11);
+        }, i * 90);
+      });
+    },
   };
 })(window);
