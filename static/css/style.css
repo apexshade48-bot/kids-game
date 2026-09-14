@@ -1,6 +1,7 @@
 /* Word Stars — dashboard UI (aligned with Admin Panel) */
 
 :root {
+  color-scheme: light;
   --bg: #f8fafc;
   --bg2: #f1f5f9;
   --card: #ffffff;
