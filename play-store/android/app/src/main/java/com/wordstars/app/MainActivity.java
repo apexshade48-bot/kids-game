@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         WebView.setWebContentsDebuggingEnabled(true);
 
         prefs = getSharedPreferences("wordstars", MODE_PRIVATE);
-        String saved = prefs.getString("url", getString(R.string.game_url));
+        String saved = prefs.getString("url", getString(R.string.default_url));
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);

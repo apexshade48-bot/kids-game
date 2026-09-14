@@ -5,4 +5,11 @@
         <item name="android:navigationBarColor">#7C3AED</item>
         <item name="android:windowBackground">#C4B5FD</item>
     </style>
+
+    <!-- Used only for the brief moment before the TWA takes over; avoids a
+         white flash between the launcher icon tap and the site loading. -->
+    <style name="Theme.Launcher" parent="Theme.WordStars">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/backgroundColor</item>
+    </style>
 </resources>

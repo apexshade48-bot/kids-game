@@ -1,23 +1,49 @@
+import java.util.Properties
+
 plugins {
     id 'com.android.application'
 }
 
+// Release signing comes from local.properties (never committed — see .gitignore).
+// Until RELEASE_STORE_FILE is set there, `bundleRelease`/`assembleRelease` still
+// run but produce an UNSIGNED .aab/.apk — fine for compile-checking, not for upload.
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def hasReleaseSigning = localProps.getProperty('RELEASE_STORE_FILE') != null
+
 android {
     namespace 'com.wordstars.app'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.wordstars.app"
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode 90
         versionName "9.0"
+    }
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            release {
+                storeFile rootProject.file(localProps.getProperty('RELEASE_STORE_FILE'))
+                storePassword localProps.getProperty('RELEASE_STORE_PASSWORD')
+                keyAlias localProps.getProperty('RELEASE_KEY_ALIAS')
+                keyPassword localProps.getProperty('RELEASE_KEY_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
@@ -27,4 +53,5 @@ android {
 }
 
 dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
 }

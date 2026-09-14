@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Word Stars</string>
-    <!-- Change this to your live HTTPS site, no trailing slash. Example: https://word-stars.onrender.com -->
-    <string name="game_url">https://apexshade.pythonanywhere.com</string>
+    <!-- Production HTTPS site the TWA opens. Must match /.well-known/assetlinks.json on this host. -->
+    <string name="default_url">https://apexshade.pythonanywhere.com/</string>
+    <string name="host_name">apexshade.pythonanywhere.com</string>
 </resources>

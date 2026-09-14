@@ -23,7 +23,7 @@ No ads. No in-app purchases required to start (Easy and starter levels are free)
 
 The Android app opens your hosted Word Stars site (Trusted Web Activity). A parent or teacher should host the game at an HTTPS address.
 
-Privacy: https://YOUR-HOST/privacy
+Privacy: https://apexshade.pythonanywhere.com/privacy
 
 CATEGORY
 Game → Educational
@@ -32,9 +32,25 @@ TAGS
 words, spelling, kids, english, education, family
 
 CONTACT
-Use the parent email you set in the app, or the Play Console support email.
+Future AI (Pakistan) — apexshade16@gmail.com
+
+DEVELOPER / PUBLISHER
+Future AI, Pakistan
 
 GRAPHIC ASSETS
 Icon: play-store/icon-512.png  (or static/icons/icon-512.png)
 Feature graphic: play-store/feature-graphic.png  (1024 x 500)
-Phone screenshots: take 2+ from a real phone (Home, Spell, Shop)
+Phone screenshots: play-store/screenshots/ (captured 2026-09-14)
+
+RELEASE NOTES (v9.0, first Play release)
+Word Stars is on Google Play! Learn letters, sounds, and spelling through
+games, earn coins and stars, dress up your avatar, and chat with family
+or classmates on the same server. No ads.
+
+TARGET AUDIENCE / CONTENT RATING
+General audience, educational game that appeals to children among others.
+Player chat is ON, so do NOT enroll in "Designed for Families" — answer the
+Play Console Target Audience questionnaire honestly (age groups it appeals
+to) without ticking the Families program. Content rating questionnaire:
+answer "no" to violence/gambling/etc — this is a word-learning game with
+user-to-user chat, which the questionnaire should flag as a rating factor.

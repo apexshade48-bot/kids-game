@@ -22,6 +22,31 @@ Sharing: not sold. Chat messages are visible to other players on the same Word S
 
 Security: data is in transit via HTTPS if you host with HTTPS. Passwords are hashed.
 
-Users can request deletion: host/admin can delete the account from Admin.
+Users can request deletion: host/admin can delete the account from Admin,
+or email apexshade16@gmail.com.
 
 Kids: do not enroll in Designed for Families while open player chat is on.
+
+Developer contact for this form: Future AI (Pakistan), apexshade16@gmail.com
+
+CONFIRMED FROM CODE:
+"Say it" (static/js/game.js, space.js) uses the browser's built-in
+window.SpeechRecognition / webkitSpeechRecognition API. Only the
+recognized TEXT is read by our JS — no audio is ever POSTed to the Flask
+server. HOWEVER: on Chrome/Android, webkitSpeechRecognition itself sends
+the raw microphone audio to Google's cloud speech-recognition service to
+be transcribed (this is a Chrome/OS behavior, not something this app's
+code controls). So for Data Safety, answer:
+  - "Does your app collect audio?" -> mic audio is captured and sent to
+    Google's speech recognition service by the browser/OS, not stored or
+    seen by our own server.
+  - Purpose: App functionality (voice practice), not shared for ads,
+    not sold.
+
+VERIFY BEFORE SUBMITTING (things not settled by code alone):
+1. If you add Google/Firebase analytics, ad SDKs, or crash reporting
+   later (none found in app.py today), update this form before that
+   release.
+2. Confirm the server's hosting country/region if Play Console asks
+   "where is data stored" (PythonAnywhere's EU/UK region vs US — check
+   your PythonAnywhere account settings).
