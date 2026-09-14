@@ -3812,6 +3812,52 @@ html.is-touch .sky-cloud {
   color: #fde68a;
 }
 
+/* Owner-only Apex ID: one-time entrance burst (plays when the card opens),
+   plus a persistent glowing nameplate behind the name — same pattern as
+   Discord's Profile Effects (one-shot on open) + Nameplates (always-on backdrop). */
+.profile-card-owner {
+  animation: owner-card-flash 1.1s ease-out;
+}
+
+.profile-card-owner::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 50% 28%, rgba(253, 230, 138, 0.55), rgba(192, 132, 252, 0.32) 40%, transparent 72%);
+  opacity: 0;
+  animation: owner-burst 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+.profile-name-owner {
+  position: relative;
+  display: inline-block;
+  padding: 2px 14px;
+}
+
+.profile-name-owner::before {
+  content: "";
+  position: absolute;
+  inset: -6px -12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(192, 132, 252, 0.28), rgba(253, 230, 138, 0.4), rgba(103, 232, 249, 0.28), rgba(192, 132, 252, 0.28));
+  background-size: 220% 100%;
+  animation: pname-shift 3s linear infinite;
+  z-index: -1;
+}
+
+@keyframes owner-burst {
+  0% { opacity: 0; transform: scale(0.35); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.55); }
+}
+
+@keyframes owner-card-flash {
+  0% { box-shadow: 0 0 0 rgba(253, 230, 138, 0); }
+  30% { box-shadow: 0 0 42px rgba(253, 230, 138, 0.65); }
+  100% { box-shadow: var(--depth-2); }
+}
+
 .profile-stats {
   justify-content: center;
 }
