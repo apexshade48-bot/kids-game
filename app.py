@@ -353,6 +353,7 @@ def signup():
                 parent_email=parent_email,
                 aura_choices=db.AURA_CHOICES,
             )
+        session.permanent = True
         session["user_id"] = result
         session["user_name"] = name.strip()
         session["is_admin"] = db.is_user_admin(result)
@@ -376,6 +377,7 @@ def login():
         if not ok:
             flash(str(result), "error")
             return render_template("login.html", tab="login", name=name)
+        session.permanent = True
         session["user_id"] = result["id"]
         session["user_name"] = result["name"]
         session["is_admin"] = result.get("is_admin", False)
