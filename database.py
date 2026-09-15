@@ -29,9 +29,9 @@ DB_PATH = _DATA_DIR / "kids_word_game.db"
 FREE_MODES = frozenset({"letters", "sounds", "beginner", "easy"})
 UNLOCK_COSTS = {
     "normal": 300,
-    "hard": 800,
-    "top": 2000,
-    "impossible": 3000,  # family spoken English (admin can unlock for free)
+    "hard": 5000,
+    "top": 10000,
+    "impossible": 20000,  # family spoken English (admin can unlock for free)
 }
 ALL_MODES = (
     "letters",
