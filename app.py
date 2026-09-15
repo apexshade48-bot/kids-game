@@ -28,8 +28,10 @@ import mailer
 import ollama_teacher
 from network import DEFAULT_PORT, get_device_urls
 from words import (
+    IMPOSSIBLE_PHRASES,
     MODE_CONFIG,
     MODE_ORDER,
+    get_fluency_test_questions,
     get_picture_quiz_questions,
     get_quiz_questions,
     get_round_items,
@@ -41,7 +43,7 @@ from words import (
     daily_talk_items,
 )
 
-APP_VERSION = "9.0"
+APP_VERSION = "9.1"
 PORT = int(os.environ.get("PORT", DEFAULT_PORT))
 DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "0").lower() in ("1", "true", "yes")
@@ -476,6 +478,93 @@ def more_page():
         "more.html",
         name=session.get("user_name", "Friend"),
         parent_email=db.get_parent_email(session["user_id"]),
+        fluent_unlocked=db.is_fluent_unlocked(session["user_id"]),
+        fluent_passed=db.has_fluent_badge(session["user_id"]),
+    )
+
+
+@app.route("/fluently")
+def fluently_page():
+    if not login_required():
+        return redirect(url_for("login"))
+    user_id = session["user_id"]
+    mastered = db.count_family_mastered(user_id)
+    total = len(IMPOSSIBLE_PHRASES)
+    unlocked = mastered >= total
+    passed = db.has_fluent_badge(user_id)
+    attempts_used = db.recent_fluency_attempt_count(user_id) if unlocked and not passed else 0
+    return render_template(
+        "fluently.html",
+        name=session.get("user_name", "Friend"),
+        mastered=mastered,
+        total=total,
+        unlocked=unlocked,
+        passed=passed,
+        attempts_used=attempts_used,
+        attempts_max=db.FLUENCY_ATTEMPTS_PER_WEEK,
+    )
+
+
+@app.route("/fluently/test")
+def fluently_test():
+    if not login_required():
+        return redirect(url_for("login"))
+    user_id = session["user_id"]
+    if db.has_fluent_badge(user_id):
+        return redirect(url_for("fluently_page"))
+    if not db.is_fluent_unlocked(user_id):
+        flash("Master every Family phrase first to unlock the Fluently test.", "error")
+        return redirect(url_for("fluently_page"))
+    if db.recent_fluency_attempt_count(user_id) >= db.FLUENCY_ATTEMPTS_PER_WEEK:
+        flash("No test attempts left this week — try again later.", "error")
+        return redirect(url_for("fluently_page"))
+
+    questions = get_fluency_test_questions(10)
+    session["fluency_answers"] = [q["answer"] for q in questions]
+    client_questions = [
+        {"display": q["display"], "choices": q["choices"]} for q in questions
+    ]
+    return render_template(
+        "fluently_test.html",
+        name=session.get("user_name", "Friend"),
+        questions=client_questions,
+    )
+
+
+@app.route("/api/fluently/submit", methods=["POST"])
+def api_fluently_submit():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    user_id = session["user_id"]
+    answer_key = session.get("fluency_answers")
+    if not answer_key:
+        return jsonify({"error": "No active test"}), 400
+    if db.recent_fluency_attempt_count(user_id) >= db.FLUENCY_ATTEMPTS_PER_WEEK:
+        session.pop("fluency_answers", None)
+        return jsonify({"error": "No test attempts left this week"}), 400
+
+    data = request.get_json(silent=True) or {}
+    submitted = data.get("answers")
+    if not isinstance(submitted, list) or len(submitted) != len(answer_key):
+        return jsonify({"error": "Invalid submission"}), 400
+
+    session.pop("fluency_answers", None)
+    correct = sum(
+        1
+        for got, want in zip(submitted, answer_key)
+        if str(got or "").strip().lower() == str(want).strip().lower()
+    )
+    passed = correct == len(answer_key)
+    db.record_fluency_attempt(user_id, passed)
+    if passed:
+        db.grant_badge(user_id, "fluent")
+    return jsonify(
+        {
+            "ok": True,
+            "passed": passed,
+            "correct": correct,
+            "total": len(answer_key),
+        }
     )
 
 

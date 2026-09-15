@@ -62,6 +62,13 @@
     <span class="more-title">Board</span>
     <span class="more-sub">Top players</span>
   </a>
+  <a href="{{ url_for('fluently_page') }}" class="more-tile">
+    <span class="more-emoji">🎓</span>
+    <span class="more-title">Fluently</span>
+    <span class="more-sub">
+      {% if fluent_passed %}Fluent badge earned{% elif fluent_unlocked %}Take the test{% else %}Master Family first{% endif %}
+    </span>
+  </a>
   {% if is_admin %}
   <a href="{{ url_for('admin_panel') }}" class="more-tile">
     <span class="more-emoji">🛠️</span>

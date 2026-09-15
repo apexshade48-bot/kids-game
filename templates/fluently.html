@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Fluently{% endblock %}
+{% block body_class %}page-fluently{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1 class="big-title">🎓 Fluently</h1>
+  <p class="subtitle">Master every Family phrase, then pass the hard test to earn your Fluent badge.</p>
+</section>
+
+{% if passed %}
+<section class="card section-card">
+  <h2>🎓 Fluent badge earned!</h2>
+  <p class="section-desc">You passed the Fluently test with a perfect score. Nice work!</p>
+  <a href="{{ url_for('more_page') }}" class="btn btn-primary btn-block">Back to More</a>
+</section>
+{% elif not unlocked %}
+<section class="card section-card">
+  <h2>Master Family first</h2>
+  <p class="section-desc">You have correctly said {{ mastered }} of {{ total }} Family phrases.</p>
+  <div class="progress-bar" role="progressbar" aria-valuenow="{{ mastered }}" aria-valuemin="0" aria-valuemax="{{ total }}">
+    <div class="progress-fill" style="width: {{ (mastered / total * 100) if total else 0 }}%"></div>
+  </div>
+  <a href="{{ url_for('play', mode='impossible') }}" class="btn btn-primary btn-block">Practice Family</a>
+</section>
+{% else %}
+<section class="card section-card">
+  <h2>Ready for the test</h2>
+  <p class="section-desc">
+    You know every Family phrase. The test is hard — you need a perfect score to pass.
+    Attempts left this week: {{ attempts_max - attempts_used }} / {{ attempts_max }}.
+  </p>
+  {% if attempts_used >= attempts_max %}
+  <p class="feedback bad">No attempts left this week — come back soon.</p>
+  {% else %}
+  <a href="{{ url_for('fluently_test') }}" class="btn btn-primary btn-block">Start the test</a>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

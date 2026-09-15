@@ -315,6 +315,7 @@ def init_db():
         _ensure_review_table(conn)
         _ensure_likes_table(conn)
         _ensure_badge_tables(conn)
+        _ensure_fluency_table(conn)
         _ensure_admin_user(conn)
         _ensure_starter_clothes(conn)
         conn.commit()
@@ -2391,6 +2392,84 @@ def get_recent_review_words(user_id: int, limit: int = 16) -> list[dict]:
         conn.close()
 
 
+FLUENCY_MODE = "impossible"
+FLUENCY_ATTEMPTS_PER_WEEK = 3
+
+
+def _ensure_fluency_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS fluency_attempts (
+            user_id INTEGER NOT NULL,
+            taken_at TEXT NOT NULL DEFAULT (datetime('now')),
+            passed INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_fluency_user_time ON fluency_attempts(user_id, taken_at)"
+    )
+
+
+def count_family_mastered(user_id: int) -> int:
+    """Distinct Family phrases this user has gotten correct at least once."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT word) AS c FROM review_words WHERE user_id = ? AND mode = ?",
+            (int(user_id), FLUENCY_MODE),
+        ).fetchone()
+        return int(row["c"] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def is_fluent_unlocked(user_id: int) -> bool:
+    import words
+
+    return count_family_mastered(user_id) >= len(words.IMPOSSIBLE_PHRASES)
+
+
+def recent_fluency_attempt_count(user_id: int, days: int = 7) -> int:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM fluency_attempts
+            WHERE user_id = ? AND taken_at >= datetime('now', ?)
+            """,
+            (int(user_id), f"-{int(days)} days"),
+        ).fetchone()
+        return int(row["c"] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def record_fluency_attempt(user_id: int, passed: bool) -> None:
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO fluency_attempts (user_id, passed) VALUES (?, ?)",
+            (int(user_id), 1 if passed else 0),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def has_fluent_badge(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM user_badges WHERE user_id = ? AND badge_id = 'fluent'",
+            (int(user_id),),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
 BADGE_DEFS = (
     {"id": "first_star", "emoji": "⭐", "label": "First star"},
     {"id": "heart", "emoji": "❤️", "label": "I like words"},
@@ -2399,6 +2478,7 @@ BADGE_DEFS = (
     {"id": "daily", "emoji": "🌞", "label": "Word of the day"},
     {"id": "space", "emoji": "🚀", "label": "Space catcher"},
     {"id": "shopper", "emoji": "👕", "label": "Dressed up"},
+    {"id": "fluent", "emoji": "🎓", "label": "Fluent"},
 )
 
 

@@ -760,3 +760,49 @@ def get_picture_quiz_questions(
             }
         )
     return questions
+
+
+_FLUENCY_STOPWORDS = {
+    "i", "a", "an", "the", "is", "am", "are", "to", "you", "it", "we", "me", "my",
+}
+_FLUENCY_WORD_POOL = sorted(
+    {
+        w
+        for phrase in IMPOSSIBLE_PHRASES
+        for w in phrase.split()
+        if w not in _FLUENCY_STOPWORDS
+    }
+)
+
+
+def _fluency_blank_word(words: list[str]) -> str:
+    candidates = [w for w in words if w not in _FLUENCY_STOPWORDS and len(w) > 2]
+    if not candidates:
+        candidates = words
+    return max(candidates, key=len)
+
+
+def get_fluency_test_questions(num: int = 10) -> list[dict]:
+    """Fill-in-the-blank test built from Family phrases (used to earn the Fluent badge)."""
+    phrases = random.sample(IMPOSSIBLE_PHRASES, min(num, len(IMPOSSIBLE_PHRASES)))
+    questions = []
+    for phrase in phrases:
+        words = phrase.split()
+        answer = _fluency_blank_word(words)
+        idx = words.index(answer)
+        display_words = list(words)
+        display_words[idx] = "____"
+        pool = [w for w in _FLUENCY_WORD_POOL if w != answer]
+        n_distractors = min(3, len(pool))
+        distractors = random.sample(pool, n_distractors)
+        choices = distractors + [answer]
+        random.shuffle(choices)
+        questions.append(
+            {
+                "phrase": phrase,
+                "display": " ".join(display_words),
+                "answer": answer,
+                "choices": choices,
+            }
+        )
+    return questions

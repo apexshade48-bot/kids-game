@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Fluently Test{% endblock %}
+{% block body_class %}page-fluently{% endblock %}
+
+{% block content %}
+<div
+  id="fluency-root"
+  data-questions='{{ questions | tojson }}'
+  data-submit-url="{{ url_for('api_fluently_submit') }}"
+>
+  <div class="play-header">
+    <span class="play-meta">
+      <span class="badge">Fluently Test</span>
+      <span id="fluency-progress" class="badge badge-soft">1 / {{ questions|length }}</span>
+    </span>
+  </div>
+
+  <section id="fluency-panel" class="play-panel">
+    <div class="word-stage quiz-stage">
+      <p class="coach quiz-prompt">Fill in the missing word — you need every one right to pass!</p>
+      <p id="fluency-phrase" class="quiz-blank-word"></p>
+      <p id="fluency-feedback" class="feedback" aria-live="assertive"></p>
+    </div>
+    <div id="fluency-choices" class="quiz-choices quiz-word-choices" role="group" aria-label="Answer choices"></div>
+  </section>
+
+  <section id="fluency-done" class="done-panel hidden">
+    <div class="card done-card">
+      <div class="done-emoji" id="fluency-done-emoji">🎓</div>
+      <h2 id="fluency-done-title">Test complete</h2>
+      <p id="fluency-summary" class="subtitle"></p>
+      <div class="done-actions">
+        <a href="{{ url_for('fluently_page') }}" class="btn btn-primary">Back to Fluently</a>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sounds.js') }}?v={{ app_version }}"></script>
+<script src="{{ url_for('static', filename='js/fluently.js') }}?v={{ app_version }}"></script>
+{% endblock %}
