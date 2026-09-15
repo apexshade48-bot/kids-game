@@ -11,6 +11,8 @@ import re
 from shop import (
     ADMIN_ITEM_IDS,
     ADMIN_OWNER_LIMIT,
+    DEV_ITEM_IDS,
+    DEV_OWNER_LIMIT,
     DEFAULT_HAT,
     DEFAULT_NAME,
     DEFAULT_PANTS,
@@ -144,6 +146,8 @@ def _ensure_user_columns(conn):
         conn.execute("ALTER TABLE users ADD COLUMN equipped_pants TEXT")
     if "is_hacker" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN is_hacker INTEGER NOT NULL DEFAULT 0")
+    if "is_developer" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN is_developer INTEGER NOT NULL DEFAULT 0")
     if "equipped_name" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN equipped_name TEXT")
     if "parent_email" not in cols:
@@ -662,6 +666,15 @@ def _admin_owner_ids(conn) -> set[int]:
     return {int(r["user_id"]) for r in rows}
 
 
+def _dev_owner_ids(conn) -> set[int]:
+    placeholders = ",".join("?" * len(DEV_ITEM_IDS))
+    rows = conn.execute(
+        f"SELECT DISTINCT user_id FROM inventory WHERE item_id IN ({placeholders})",
+        DEV_ITEM_IDS,
+    ).fetchall()
+    return {int(r["user_id"]) for r in rows}
+
+
 def get_shop_catalog(user_id: int) -> dict:
     avatar = get_avatar(user_id)
     owned = set(avatar["owned"])
@@ -714,6 +727,12 @@ def buy_shop_item(user_id: int, item_id: str) -> tuple[bool, str | dict]:
             if user_id not in owners and len(owners) >= ADMIN_OWNER_LIMIT:
                 conn.rollback()
                 return False, "Only 2 players in the whole game can buy Admin gear."
+
+        if item.get("dev_set"):
+            owners = _dev_owner_ids(conn)
+            if user_id not in owners and len(owners) >= DEV_OWNER_LIMIT:
+                conn.rollback()
+                return False, "Only 1 player in the whole game can buy Developer gear."
 
         if cost > 0 and not is_user_god(user_id):
             row = conn.execute(
@@ -901,7 +920,7 @@ def get_player_market(user_id: int) -> dict:
         item = get_item(item_id)
         if not item:
             continue
-        if item_id in STARTER_ITEM_IDS or item.get("admin_set"):
+        if item_id in STARTER_ITEM_IDS or item.get("admin_set") or item.get("dev_set"):
             continue
         pub = item_public(item)
         pub["listed"] = item_id in listed
@@ -930,6 +949,8 @@ def list_item_for_sale(
         return False, "Starter items cannot be sold."
     if item.get("admin_set"):
         return False, "Admin gear cannot be sold."
+    if item.get("dev_set"):
+        return False, "Developer gear cannot be sold."
     try:
         price = int(price)
     except (TypeError, ValueError):
@@ -1401,7 +1422,8 @@ def get_all_users() -> list[dict]:
                    COALESCE(u.is_banned, 0) AS is_banned,
                    COALESCE(u.is_fake, 0) AS is_fake,
                    COALESCE(u.god_mode, 0) AS god_mode,
-                   COALESCE(u.is_hacker, 0) AS is_hacker
+                   COALESCE(u.is_hacker, 0) AS is_hacker,
+                   COALESCE(u.is_developer, 0) AS is_developer
             FROM users u
             ORDER BY u.id ASC
             """
@@ -1426,6 +1448,13 @@ def get_all_users() -> list[dict]:
                 """,
                 (row["id"], *ADMIN_ITEM_IDS),
             ).fetchall()
+            dev_owned = conn.execute(
+                f"""
+                SELECT item_id FROM inventory
+                WHERE user_id = ? AND item_id IN ({",".join("?" * len(DEV_ITEM_IDS))})
+                """,
+                (row["id"], *DEV_ITEM_IDS),
+            ).fetchall()
             users.append({
                 "id": row["id"],
                 "name": row["name"],
@@ -1437,6 +1466,8 @@ def get_all_users() -> list[dict]:
                 "god_mode": bool(row["god_mode"]),
                 "is_hacker": bool(row["is_hacker"]) or is_owner_admin_name(row["name"]),
                 "has_admin_gear": bool(admin_owned),
+                "is_developer": bool(row["is_developer"]),
+                "has_dev_gear": bool(dev_owned),
                 "created_at": row["created_at"],
                 "scores": {
                     mode: int(score_map.get(int(row["id"]), {}).get(mode, 0) or 0)
@@ -1789,6 +1820,124 @@ def set_user_hacker(target_id: int, enabled: bool) -> tuple[bool, str]:
         if enabled:
             return True, f"Hacker Panel gifted to {row['name']}."
         return True, f"Hacker Panel taken from {row['name']}."
+    finally:
+        conn.close()
+
+
+def is_user_developer(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT is_developer FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        return bool(row["is_developer"]) if row else False
+    finally:
+        conn.close()
+
+
+def set_user_developer(target_id: int, enabled: bool) -> tuple[bool, str]:
+    """Toggle the Developer role flag (used for the free-hint perk)."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, name FROM users WHERE id = ?",
+            (target_id,),
+        ).fetchone()
+        if not row:
+            return False, "Player not found."
+        conn.execute(
+            "UPDATE users SET is_developer = ? WHERE id = ?",
+            (1 if enabled else 0, target_id),
+        )
+        conn.commit()
+        if enabled:
+            return True, f"Developer role granted to {row['name']}."
+        return True, f"Developer role taken from {row['name']}."
+    finally:
+        conn.close()
+
+
+def strip_dev_gear(target_id: int) -> tuple[bool, str]:
+    """Remove Developer shirt/pants/headset (and the role flag) from a player."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, name FROM users WHERE id = ?",
+            (target_id,),
+        ).fetchone()
+        if not row:
+            return False, "Player not found."
+        removed = []
+        for item_id in DEV_ITEM_IDS:
+            owned = conn.execute(
+                "SELECT 1 FROM inventory WHERE user_id = ? AND item_id = ?",
+                (target_id, item_id),
+            ).fetchone()
+            if not owned:
+                continue
+            _unequip_item(conn, target_id, item_id)
+            conn.execute(
+                "DELETE FROM inventory WHERE user_id = ? AND item_id = ?",
+                (target_id, item_id),
+            )
+            conn.execute(
+                "DELETE FROM listings WHERE seller_id = ? AND item_id = ?",
+                (target_id, item_id),
+            )
+            item = get_item(item_id)
+            removed.append(item["label"] if item else item_id)
+        conn.execute(
+            "UPDATE users SET is_developer = 0 WHERE id = ?",
+            (target_id,),
+        )
+        conn.commit()
+        if not removed:
+            return False, f"{row['name']} has no Developer gear."
+        return True, f"Removed from {row['name']}: " + ", ".join(removed)
+    finally:
+        conn.close()
+
+
+def gift_dev_gear(target_id: int) -> tuple[bool, str]:
+    """Give Developer shirt, pants, and headset for free (max 1 owner) and set the role flag."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, name FROM users WHERE id = ?",
+            (target_id,),
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            return False, "Player not found."
+        owners = _dev_owner_ids(conn)
+        if target_id not in owners and len(owners) >= DEV_OWNER_LIMIT:
+            conn.rollback()
+            return False, "Only 1 player can hold Developer gear. Strip the other one first."
+        given = []
+        for item_id in DEV_ITEM_IDS:
+            conn.execute(
+                "INSERT OR IGNORE INTO inventory (user_id, item_id) VALUES (?, ?)",
+                (target_id, item_id),
+            )
+            item = get_item(item_id)
+            if item:
+                col = slot_column(item["slot"])
+                conn.execute(
+                    f"UPDATE users SET {col} = ? WHERE id = ?",
+                    (item_id, target_id),
+                )
+                given.append(item["label"])
+        conn.execute(
+            "UPDATE users SET is_developer = 1 WHERE id = ?",
+            (target_id,),
+        )
+        conn.commit()
+        return True, f"Gifted Developer gear to {row['name']}: " + ", ".join(given)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

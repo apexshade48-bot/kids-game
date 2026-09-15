@@ -22,6 +22,11 @@ ADMIN_OWNER_LIMIT = 2
 ADMIN_COST = 1_000_000_000_000_000
 ADMIN_ITEM_IDS = ("tee_admin", "pants_admin", "acc_admin")
 
+DEV_OWNER_LIMIT = 1
+# Gift-only, same as Admin gear — cost is a placeholder so it's never realistically buyable.
+DEV_COST = 1_000_000_000_000_000
+DEV_ITEM_IDS = ("tee_dev", "pants_dev", "acc_dev")
+
 # Lots of cloth for the marketplace. One flex shirt at 1,000,000 coins.
 MARKET_ITEMS = (
     # Starter
@@ -1051,6 +1056,55 @@ MARKET_ITEMS = (
         "admin_set": True,
         "aura": True,
         "owner_limit": ADMIN_OWNER_LIMIT,
+        "place": "head",
+    },
+    {
+        "id": "tee_dev",
+        "slot": "shirt",
+        "label": "Developer Shirt",
+        "cost": DEV_COST,
+        "emoji": "💻",
+        "color": "#062018",
+        "accent": "#34d399",
+        "pattern": "admin",
+        "badge": "💻",
+        "blurb": "Developer shirt — gift only. Only 1 player in the whole game can wear this.",
+        "legendary": True,
+        "dev_set": True,
+        "aura": True,
+        "owner_limit": DEV_OWNER_LIMIT,
+    },
+    {
+        "id": "pants_dev",
+        "slot": "pants",
+        "label": "Developer Pants",
+        "cost": DEV_COST,
+        "emoji": "💻",
+        "color": "#062018",
+        "accent": "#6ee7b7",
+        "pattern": "admin",
+        "badge": "",
+        "blurb": "Developer pants — gift only. Only 1 player can own this set.",
+        "legendary": True,
+        "dev_set": True,
+        "aura": True,
+        "owner_limit": DEV_OWNER_LIMIT,
+    },
+    {
+        "id": "acc_dev",
+        "slot": "hat",
+        "label": "Developer Headset",
+        "cost": DEV_COST,
+        "emoji": "🎧",
+        "color": "#34d399",
+        "accent": "#062018",
+        "pattern": "hat",
+        "badge": "",
+        "blurb": "Developer headset — gift only. Only 1 player can wear it.",
+        "legendary": True,
+        "dev_set": True,
+        "aura": True,
+        "owner_limit": DEV_OWNER_LIMIT,
         "place": "head",
     },
     # Name animations — default is simple; the rest are bought

@@ -75,6 +75,19 @@
         name +
         '">Gift Admin gear</button>';
     }
+    if (u.has_dev_gear) {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-nuke" data-action="strip_dev" data-name="' +
+        name +
+        '" data-confirm="Strip Developer gear from ' +
+        name +
+        '?">Strip dev gear</button>';
+    } else {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_dev" data-name="' +
+        name +
+        '">Gift Developer gear</button>';
+    }
     html += "</div>";
     return html;
   }
@@ -95,6 +108,8 @@
       if (u.god_mode) badges += '<span class="admin-badge">GOD</span> ';
       if (u.is_hacker && !u.is_owner) badges += '<span class="admin-badge">HACKER</span> ';
       if (u.has_admin_gear) badges += '<span class="admin-badge">⚡ GEAR</span> ';
+      if (u.is_developer && !u.is_owner) badges += '<span class="admin-badge">DEV</span> ';
+      if (u.has_dev_gear) badges += '<span class="admin-badge">💻 GEAR</span> ';
       li.innerHTML =
         "<div><strong>" +
         escapeHtml(u.name) +

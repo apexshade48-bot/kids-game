@@ -1053,6 +1053,16 @@ def api_hint():
         return jsonify({"error": "Mode locked"}), 403
     if not word or len(word) < 1:
         return jsonify({"error": "Missing word"}), 400
+    if db.is_user_developer(session["user_id"]):
+        coins = db.get_user_coins(session["user_id"])
+        return jsonify(
+            {
+                "ok": True,
+                "hint_letter": word[0].upper(),
+                "coins": coins,
+                "cost": 0,
+            }
+        )
     ok, result = db.spend_coins(session["user_id"], db.HINT_COST)
     if not ok:
         return jsonify({"error": result}), 400
@@ -1546,6 +1556,18 @@ def shade_api(action):
             db.shade_unlock_all(uid)
     elif action == "unlock_all":
         ok, msg = db.shade_unlock_all(uid)
+    elif action == "gift_dev":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.gift_dev_gear(target["id"])
+    elif action == "strip_dev":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.strip_dev_gear(target["id"])
     elif action == "master_family":
         for phrase in IMPOSSIBLE_PHRASES:
             db.record_review_word(uid, "impossible", phrase)
