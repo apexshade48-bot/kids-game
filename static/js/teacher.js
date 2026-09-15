@@ -55,7 +55,7 @@
         if (status) status.textContent = data && data.ok ? "" : reply;
       })
       .catch(function () {
-        addBubble("Teacher is asleep. Run ollama serve on this PC.", "bot");
+        addBubble("Could not reach the Teacher. Try again.", "bot");
       })
       .then(function () {
         busy = false;

@@ -48,7 +48,13 @@ def _resolve_model(host: str | None, requested: str | None) -> tuple[str | None,
     wanted = requested or DEFAULT_MODEL
     available = list_models(host)
     if not available:
-        return None, "No Ollama model is installed. Run: ollama pull llama3.2:3b"
+        if not ping(host):
+            return None, (
+                "The AI Teacher only works when Word Stars is running on your "
+                "own computer with Ollama installed — it can't run on this "
+                "online version."
+            )
+        return None, "No AI model is installed yet. Ask a grown-up to run: ollama pull llama3.2:3b"
     if wanted in available:
         return wanted, None
     # Exact tag (e.g. "llama3.2:3b") may differ from an installed "llama3.2:latest" —
