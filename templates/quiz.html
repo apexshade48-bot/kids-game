@@ -11,6 +11,7 @@
   data-questions='{{ questions | tojson }}'
   data-score-url="{{ url_for('api_score') }}"
   data-home-url="{{ url_for('home') }}"
+  data-mode-label="{{ mode_label }}"
 >
   <div class="play-header">
     <a href="{{ url_for('home') }}" class="btn btn-small btn-ghost">← Home</a>
@@ -40,8 +41,8 @@
 
   <section id="quiz-done" class="done-panel hidden">
     <div class="card done-card">
-      <div class="done-emoji">🧠</div>
-      <h2>Quiz complete</h2>
+      <div class="done-emoji" id="quiz-done-emoji">🧠</div>
+      <h2 id="quiz-done-title">Quiz complete</h2>
       <p id="quiz-summary" class="subtitle"></p>
       <p class="subtitle stop-ask">Want to play more, or stop?</p>
       <div class="done-actions">

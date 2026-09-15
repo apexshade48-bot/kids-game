@@ -3,6 +3,7 @@
   if (!root) return;
 
   const mode = root.dataset.mode;
+  const modeLabel = root.dataset.modeLabel || mode;
   const pointsPerWord = parseInt(root.dataset.points, 10) || 10;
   const scoreUrl = root.dataset.scoreUrl || "/api/score";
   const hintUrl = root.dataset.hintUrl || "/api/hint";
@@ -81,6 +82,8 @@
     roundScore: document.getElementById("round-score"),
     playPanel: document.getElementById("play-panel"),
     donePanel: document.getElementById("done-panel"),
+    doneEmoji: document.getElementById("done-emoji"),
+    doneTitle: document.getElementById("done-title"),
     wordHint: document.getElementById("word-hint"),
     targetWord: document.getElementById("target-word"),
     typed: document.getElementById("typed-display"),
@@ -547,6 +550,14 @@
     ping(els.donePanel, "win-in");
     burst(els.donePanel, true);
     if (sfx && sfx.win) sfx.win();
+    const perfect = words.length > 0 && correctCount === words.length;
+    if (perfect) {
+      if (els.doneEmoji) els.doneEmoji.textContent = "🌟";
+      if (els.doneTitle) els.doneTitle.textContent = "Perfect round!";
+    } else {
+      if (els.doneEmoji) els.doneEmoji.textContent = "🎉";
+      if (els.doneTitle) els.doneTitle.textContent = "Round complete";
+    }
     els.doneSummary.textContent =
       "You got " +
       correctCount +
@@ -556,7 +567,10 @@
       roundPoints +
       " stars and +" +
       roundCoins +
-      " coins!";
+      " coins!" +
+      (perfect
+        ? " All correct in " + modeLabel + " — your English is getting better every day!"
+        : "");
   }
 
   async function useHint() {

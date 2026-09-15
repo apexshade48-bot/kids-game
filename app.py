@@ -521,6 +521,7 @@ def fluently_test():
 
     questions = get_fluency_test_questions(10)
     session["fluency_answers"] = [q["answer"] for q in questions]
+    session["fluency_phrases"] = [q["phrase"] for q in questions]
     client_questions = [
         {"display": q["display"], "choices": q["choices"]} for q in questions
     ]
@@ -541,6 +542,7 @@ def api_fluently_submit():
         return jsonify({"error": "No active test"}), 400
     if db.recent_fluency_attempt_count(user_id) >= db.FLUENCY_ATTEMPTS_PER_WEEK:
         session.pop("fluency_answers", None)
+        session.pop("fluency_phrases", None)
         return jsonify({"error": "No test attempts left this week"}), 400
 
     data = request.get_json(silent=True) or {}
@@ -548,12 +550,22 @@ def api_fluently_submit():
     if not isinstance(submitted, list) or len(submitted) != len(answer_key):
         return jsonify({"error": "Invalid submission"}), 400
 
+    phrases = session.get("fluency_phrases") or [None] * len(answer_key)
     session.pop("fluency_answers", None)
-    correct = sum(
-        1
-        for got, want in zip(submitted, answer_key)
-        if str(got or "").strip().lower() == str(want).strip().lower()
-    )
+    session.pop("fluency_phrases", None)
+    mistakes = []
+    correct = 0
+    for got, want, phrase in zip(submitted, answer_key, phrases):
+        if str(got or "").strip().lower() == str(want).strip().lower():
+            correct += 1
+        else:
+            mistakes.append(
+                {
+                    "phrase": phrase,
+                    "answer": want,
+                    "chosen": got,
+                }
+            )
     passed = correct == len(answer_key)
     db.record_fluency_attempt(user_id, passed)
     if passed:
@@ -564,6 +576,7 @@ def api_fluently_submit():
             "passed": passed,
             "correct": correct,
             "total": len(answer_key),
+            "mistakes": mistakes,
         }
     )
 

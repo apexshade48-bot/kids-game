@@ -3,6 +3,7 @@
   if (!root) return;
 
   const mode = root.dataset.mode;
+  const modeLabel = root.dataset.modeLabel || mode;
   const pointsPerWord = parseInt(root.dataset.points, 10) || 10;
   const quizKind = root.dataset.quizKind || "letter";
   const scoreUrl = root.dataset.scoreUrl || "/api/score";
@@ -59,6 +60,8 @@
     score: document.getElementById("quiz-score"),
     panel: document.getElementById("quiz-panel"),
     done: document.getElementById("quiz-done"),
+    doneEmoji: document.getElementById("quiz-done-emoji"),
+    doneTitle: document.getElementById("quiz-done-title"),
     hint: document.getElementById("quiz-hint"),
     blankWord: document.getElementById("quiz-blank-word"),
     choices: document.getElementById("quiz-choices"),
@@ -287,6 +290,14 @@
     ping(els.done, "win-in");
     burst(els.done);
     if (sfx && sfx.win) sfx.win();
+    const perfect = questions.length > 0 && correctCount === questions.length;
+    if (perfect) {
+      if (els.doneEmoji) els.doneEmoji.textContent = "🌟";
+      if (els.doneTitle) els.doneTitle.textContent = "Perfect round!";
+    } else {
+      if (els.doneEmoji) els.doneEmoji.textContent = "🧠";
+      if (els.doneTitle) els.doneTitle.textContent = "Quiz complete";
+    }
     els.summary.textContent =
       "You got " +
       correctCount +
@@ -296,7 +307,10 @@
       roundPoints +
       " stars and +" +
       roundPoints +
-      " coins!";
+      " coins!" +
+      (perfect
+        ? " All correct in " + modeLabel + " — your English is getting better every day!"
+        : "");
   }
 
   document.addEventListener("keydown", function (e) {

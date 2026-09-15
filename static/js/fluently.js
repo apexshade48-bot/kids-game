@@ -22,6 +22,7 @@
     summary: document.getElementById("fluency-summary"),
     doneTitle: document.getElementById("fluency-done-title"),
     doneEmoji: document.getElementById("fluency-done-emoji"),
+    review: document.getElementById("fluency-review"),
   };
 
   let index = 0;
@@ -86,6 +87,89 @@
     }
   }
 
+  function askTeacher(mistake, box, btn) {
+    btn.disabled = true;
+    box.classList.remove("hidden");
+    box.textContent = "🦉 Thinking…";
+    fetch("/api/teacher", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        word: mistake.answer,
+        text:
+          'Explain to a small child why the sentence "' +
+          mistake.phrase +
+          '" uses the word "' +
+          mistake.answer +
+          '" and not "' +
+          (mistake.chosen || "") +
+          '". Keep it very short and simple.',
+      }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        box.textContent = "🦉 " + ((data && (data.reply || data.error)) || "Try again in a moment.");
+      })
+      .catch(function () {
+        box.textContent = "🦉 Teacher is asleep right now. Try again later.";
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
+  function renderReview(mistakes) {
+    if (!els.review) return;
+    if (!mistakes || !mistakes.length) {
+      els.review.classList.add("hidden");
+      els.review.innerHTML = "";
+      return;
+    }
+    els.review.innerHTML = "";
+    els.review.classList.remove("hidden");
+    mistakes.forEach(function (m) {
+      const card = document.createElement("div");
+      card.className = "fluency-mistake";
+
+      const sentence = document.createElement("p");
+      sentence.className = "fluency-sentence";
+      sentence.textContent = m.phrase || "";
+      card.appendChild(sentence);
+
+      const said = document.createElement("p");
+      said.innerHTML =
+        'You said <span class="fluency-wrong">"' +
+        (m.chosen || "—") +
+        '"</span> — the right word is <span class="fluency-right">"' +
+        m.answer +
+        '"</span>.';
+      card.appendChild(said);
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-ghost btn-small";
+      btn.textContent = "🦉 Ask Teacher";
+
+      const replyBox = document.createElement("p");
+      replyBox.className = "fluency-teacher-reply hidden";
+
+      btn.addEventListener("click", function () {
+        askTeacher(m, replyBox, btn);
+      });
+
+      card.appendChild(btn);
+      card.appendChild(replyBox);
+      els.review.appendChild(card);
+    });
+  }
+
   async function submitTest() {
     els.panel.classList.add("hidden");
     els.done.classList.remove("hidden");
@@ -110,15 +194,21 @@
       }
       if (data.passed) {
         els.doneEmoji.textContent = "🎓";
-        els.doneTitle.textContent = "You passed!";
+        els.doneTitle.textContent = "New level unlocked!";
         els.summary.textContent =
-          "Perfect score — " + data.correct + "/" + data.total + "! You earned the Fluent badge.";
+          "Perfect score — " +
+          data.correct +
+          "/" +
+          data.total +
+          "! You earned the Fluent badge. Your English is getting better every day — keep it up!";
         if (sfx && sfx.win) sfx.win();
+        renderReview(null);
       } else {
         els.doneEmoji.textContent = "📚";
         els.doneTitle.textContent = "Not this time";
         els.summary.textContent =
-          "You got " + data.correct + "/" + data.total + " right. You need a perfect score to pass — try again soon.";
+          "You got " + data.correct + "/" + data.total + " right. You need a perfect score to pass — check what went wrong below, then try again soon.";
+        renderReview(data.mistakes);
       }
     } catch (e) {
       els.doneEmoji.textContent = "😕";

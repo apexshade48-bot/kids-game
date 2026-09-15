@@ -1957,6 +1957,45 @@ a {
   margin-top: 16px;
 }
 
+.fluency-review {
+  text-align: left;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fluency-mistake {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.fluency-mistake p {
+  margin: 4px 0;
+}
+
+.fluency-mistake .fluency-sentence {
+  font-weight: 800;
+}
+
+.fluency-mistake .fluency-wrong {
+  color: var(--danger);
+}
+
+.fluency-mistake .fluency-right {
+  color: var(--success);
+}
+
+.fluency-teacher-reply {
+  margin-top: 8px;
+  background: var(--primary-soft);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 600;
+}
+
 /* ── Battle ── */
 .battle-form {
   display: flex;
