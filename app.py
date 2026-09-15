@@ -1546,6 +1546,10 @@ def shade_api(action):
             db.shade_unlock_all(uid)
     elif action == "unlock_all":
         ok, msg = db.shade_unlock_all(uid)
+    elif action == "master_family":
+        for phrase in IMPOSSIBLE_PHRASES:
+            db.record_review_word(uid, "impossible", phrase)
+        ok, msg = True, f"Mastered {db.count_family_mastered(uid)}/{len(IMPOSSIBLE_PHRASES)} Family phrases."
     elif action == "path_win":
         ok, msg = db.shade_inject_stats(uid, coins=50000, points_per_mode=50000)
         if ok:
