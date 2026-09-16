@@ -28,6 +28,11 @@ from shop import (
 _DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent))
 DB_PATH = _DATA_DIR / "kids_word_game.db"
 
+# Letters/digits/spaces and a few basic punctuation marks only — this name is later
+# interpolated into an email Subject header (mailer.py), so no control characters,
+# no \r or \n, and no header-injection-friendly symbols.
+_NAME_ALLOWED_RE = re.compile(r"^[\w' .\-]+$", re.UNICODE)
+
 FREE_MODES = frozenset({"letters", "sounds", "beginner", "easy"})
 UNLOCK_COSTS = {
     "normal": 300,
@@ -440,6 +445,8 @@ def create_user(
         return False, "Please enter a name."
     if len(name) > 32:
         return False, "Name is too long."
+    if not _NAME_ALLOWED_RE.match(name):
+        return False, "Names can only have letters, numbers, spaces, and ' . -"
     if not password or len(password) < 6:
         return False, "Password must be at least 6 characters."
     aura_norm = normalize_aura(aura)
@@ -1582,14 +1589,23 @@ def admin_set_admin_role(
         conn.close()
 
 
-def admin_set_coins(user_id: int, coins: int) -> tuple[bool, str | int]:
+def admin_set_coins(user_id: int, coins: int, actor_id: int) -> tuple[bool, str | int]:
     if coins < 0:
         return False, "Coins cannot be negative."
     conn = get_connection()
     try:
-        row = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+        row = conn.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             return False, "User not found."
+
+        # Only the owner can change the owner's own coin balance.
+        if is_owner_admin_name(row["name"]):
+            actor = conn.execute(
+                "SELECT name FROM users WHERE id = ?", (actor_id,)
+            ).fetchone()
+            if not actor or not is_owner_admin_name(actor["name"]):
+                return False, "Only the owner can change the owner's coins."
+
         conn.execute("UPDATE users SET coins = ? WHERE id = ?", (coins, user_id))
         conn.commit()
         return True, coins
@@ -1673,7 +1689,7 @@ def admin_reset_scores(user_id: int) -> tuple[bool, str]:
         conn.close()
 
 
-def admin_set_password(user_id: int, new_password: str) -> tuple[bool, str]:
+def admin_set_password(user_id: int, new_password: str, actor_id: int) -> tuple[bool, str]:
     """Admin sets a new password for a player."""
     if not new_password or len(new_password) < 6:
         return False, "Password must be at least 6 characters."
@@ -1682,6 +1698,16 @@ def admin_set_password(user_id: int, new_password: str) -> tuple[bool, str]:
         row = conn.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             return False, "User not found."
+
+        # Only the owner can reset the owner's own password — otherwise a secondary
+        # admin could take over the owner account and self-promote via admin_set_admin_role.
+        if is_owner_admin_name(row["name"]):
+            actor = conn.execute(
+                "SELECT name FROM users WHERE id = ?", (actor_id,)
+            ).fetchone()
+            if not actor or not is_owner_admin_name(actor["name"]):
+                return False, "Only the owner can reset the owner's password."
+
         conn.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (generate_password_hash(new_password), user_id),

@@ -80,7 +80,10 @@ def send_parent_stop_email(
         return False, "No parent email on this account."
 
     body = build_review_text(kid_name, coins, learned, mistakes, started)
-    subject = f"{kid_name} stopped playing Word Stars"
+    # Defense in depth: create_user() already whitelists name characters, but never
+    # let \r/\n from any caller reach a header — that's how header injection works.
+    safe_kid_name = (kid_name or "").replace("\r", "").replace("\n", "")
+    subject = f"{safe_kid_name} stopped playing Word Stars"
 
     if smtp_ready():
         try:

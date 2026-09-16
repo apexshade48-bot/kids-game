@@ -1533,7 +1533,7 @@ def admin_api_set_coins(user_id):
         coins = int(data.get("coins", -1))
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid coins"}), 400
-    ok, result = db.admin_set_coins(user_id, coins)
+    ok, result = db.admin_set_coins(user_id, coins, session["user_id"])
     if not ok:
         return jsonify({"error": result}), 400
     return jsonify({"ok": True, "coins": result})
@@ -1579,7 +1579,7 @@ def admin_api_reset_scores(user_id):
 def admin_api_set_password(user_id):
     data = request.get_json(silent=True) or {}
     password = data.get("password") or ""
-    ok, result = db.admin_set_password(user_id, password)
+    ok, result = db.admin_set_password(user_id, password, session["user_id"])
     if not ok:
         return jsonify({"error": result}), 400
     return jsonify({"ok": True, "message": result})
