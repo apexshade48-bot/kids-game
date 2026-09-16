@@ -440,8 +440,8 @@ def create_user(
         return False, "Please enter a name."
     if len(name) > 32:
         return False, "Name is too long."
-    if not password or len(password) < 3:
-        return False, "Password must be at least 3 characters."
+    if not password or len(password) < 6:
+        return False, "Password must be at least 6 characters."
     aura_norm = normalize_aura(aura)
     if not aura_norm:
         return False, "Please choose your aura (theme)."
@@ -1675,8 +1675,8 @@ def admin_reset_scores(user_id: int) -> tuple[bool, str]:
 
 def admin_set_password(user_id: int, new_password: str) -> tuple[bool, str]:
     """Admin sets a new password for a player."""
-    if not new_password or len(new_password) < 3:
-        return False, "Password must be at least 3 characters."
+    if not new_password or len(new_password) < 6:
+        return False, "Password must be at least 6 characters."
     conn = get_connection()
     try:
         row = conn.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()

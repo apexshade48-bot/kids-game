@@ -93,6 +93,7 @@
 </section>
 
 <form action="{{ url_for('logout') }}" method="post" class="more-logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
   <button type="submit" class="btn btn-ghost btn-block">Log out</button>
 </form>
 {% endblock %}

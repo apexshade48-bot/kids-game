@@ -11,6 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Word Stars" />
   <meta name="format-detection" content="telephone=no" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <title>{% block title %}Word Stars{% endblock %}</title>
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}" />
   <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.svg') }}" type="image/svg+xml" />
@@ -106,6 +107,25 @@
     {% endif %}
   </div>
 
+  <script>
+    (function () {
+      // Auto-attach the CSRF token to same-origin fetch() calls that mutate state,
+      // so every /api/* POST made by the page's JS is covered without editing each call site.
+      var token = document.querySelector('meta[name="csrf-token"]').content;
+      var origFetch = window.fetch;
+      window.fetch = function (input, init) {
+        init = init || {};
+        var method = (init.method || "GET").toUpperCase();
+        var url = typeof input === "string" ? input : input.url;
+        var sameOrigin = url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0;
+        if (sameOrigin && ["POST", "PUT", "PATCH", "DELETE"].indexOf(method) !== -1) {
+          init.headers = new Headers(init.headers || {});
+          if (!init.headers.has("X-CSRFToken")) init.headers.set("X-CSRFToken", token);
+        }
+        return origFetch(input, init);
+      };
+    })();
+  </script>
   <script src="{{ url_for('static', filename='js/device.js') }}?v={{ app_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}?v={{ app_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/motion.js') }}?v={{ app_version }}" defer></script>

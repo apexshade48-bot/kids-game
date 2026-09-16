@@ -16,6 +16,7 @@
   </p>
 
   <form method="post" action="{{ url_for('battle_setup') }}" class="battle-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>
       Player 1
       <input type="text" value="{{ name }}" disabled />

@@ -19,13 +19,14 @@
 
   {% if tab == 'signup' %}
   <form method="post" action="{{ url_for('signup') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>
       Your name
       <input type="text" name="name" value="{{ name or '' }}" maxlength="32" required autocomplete="username" placeholder="e.g. Mia" />
     </label>
     <label>
       Secret password
-      <input type="password" name="password" minlength="3" required autocomplete="new-password" placeholder="3+ letters or numbers" />
+      <input type="password" name="password" minlength="6" required autocomplete="new-password" placeholder="6+ letters or numbers" />
     </label>
     <label>
       Parent email
@@ -62,6 +63,7 @@
   </form>
   {% else %}
   <form method="post" action="{{ url_for('login') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>
       Your name
       <input type="text" name="name" value="{{ name or '' }}" maxlength="32" required autocomplete="username" placeholder="e.g. Mia" />

@@ -2,6 +2,7 @@
 
 import os
 import secrets
+import time
 from functools import wraps
 
 try:
@@ -22,6 +23,7 @@ from flask import (
     session,
     url_for,
 )
+from flask_wtf import CSRFProtect
 
 import database as db
 import mailer
@@ -59,13 +61,51 @@ app.secret_key = _secret
 app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_HTTPONLY=True,
+    # Cookies must be Secure whenever we're not on a plain local dev server —
+    # BEHIND_PROXY is set to 1 in production (see wsgi.py), 0 for local `python app.py`.
     SESSION_COOKIE_SECURE=BEHIND_PROXY,
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
 )
+csrf = CSRFProtect(app)
 if BEHIND_PROXY:
     from werkzeug.middleware.proxy_fix import ProxyFix
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+@app.before_request
+def enforce_https():
+    # ProxyFix (above) rewrites request.scheme from X-Forwarded-Proto, so this
+    # correctly reflects the client's original protocol even behind PythonAnywhere's proxy.
+    if BEHIND_PROXY and not request.is_secure:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
+
+
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if BEHIND_PROXY:
+        # Only meaningful (and only safe to claim) once we're actually served over HTTPS.
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 def login_required():
@@ -167,7 +207,10 @@ def ensure_db():
 def inject_globals():
     base = {
         "app_version": APP_VERSION,
-        "device_urls": get_device_urls(PORT),
+        # LAN IPs are only meaningful (and safe to show) on a local dev server.
+        # In production (BEHIND_PROXY) this would leak the host's internal/private
+        # network address to every visitor, including on the public login page.
+        "device_urls": [] if BEHIND_PROXY else get_device_urls(PORT),
         "unlock_costs": db.UNLOCK_COSTS,
         "is_admin": False,
         "is_owner": False,
@@ -279,6 +322,10 @@ def hacker_required(f):
 
 @app.route("/devices")
 def devices_help():
+    if BEHIND_PROXY:
+        # This help page is for finding the LAN IP of a local dev machine —
+        # meaningless (and a private-network info leak) once deployed publicly.
+        return redirect(url_for("home") if login_required() else url_for("login"))
     return render_template(
         "devices.html",
         device_urls=get_device_urls(PORT),
@@ -367,18 +414,53 @@ def signup():
     )
 
 
+_LOGIN_MAX_ATTEMPTS = 8
+_LOGIN_WINDOW_SECONDS = 5 * 60
+_login_attempts: dict[str, list[float]] = {}
+
+
+def _login_client_key() -> str:
+    return request.remote_addr or "unknown"
+
+
+def _login_is_locked_out(key: str) -> bool:
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(key, []) if now - t < _LOGIN_WINDOW_SECONDS]
+    _login_attempts[key] = attempts
+    return len(attempts) >= _LOGIN_MAX_ATTEMPTS
+
+
+def _login_record_failure(key: str) -> None:
+    _login_attempts.setdefault(key, []).append(time.time())
+
+
+def _login_clear(key: str) -> None:
+    _login_attempts.pop(key, None)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if login_required():
+    if request.method == "GET" and login_required():
         return redirect(url_for("home"))
 
     if request.method == "POST":
+        # Note: a POST here is processed even if a session is already active, so a
+        # shared/kid tablet can switch accounts by logging in as someone else —
+        # it must never silently keep the old session without checking credentials.
+        client_key = _login_client_key()
+        if _login_is_locked_out(client_key):
+            flash("Too many attempts. Please wait a few minutes and try again.", "error")
+            return render_template("login.html", tab="login"), 429
+
         name = request.form.get("name", "")
         password = request.form.get("password", "")
         ok, result = db.verify_user(name, password)
         if not ok:
+            _login_record_failure(client_key)
             flash(str(result), "error")
             return render_template("login.html", tab="login", name=name)
+        _login_clear(client_key)
+        session.clear()
         session.permanent = True
         session["user_id"] = result["id"]
         session["user_name"] = result["name"]

@@ -16,6 +16,7 @@
 
 <section class="card section-card">
   <form method="post" action="{{ url_for('choose_aura') }}" class="auth-form" id="aura-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <p class="section-desc">Tap a skin, then save.</p>
     <div class="aura-picker" role="radiogroup" aria-label="Choose aura">
       {% for a in aura_choices %}
