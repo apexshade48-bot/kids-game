@@ -80,17 +80,6 @@
   <p class="hint-note">Voice works best in Chrome or Edge. Ask a grown-up for the mic.</p>
 </section>
 
-<section class="card device-help">
-  <h2>📱 Tablet or phone?</h2>
-  <p>Do <strong>not</strong> copy files — open the game in your browser on the same Wi‑Fi.</p>
-  {% if device_urls %}
-  <p class="device-link-label">Open on your device:</p>
-  {% for url in device_urls %}
-  <a href="{{ url }}" class="device-url-inline">{{ url }}</a>
-  {% endfor %}
-  {% endif %}
-  <a href="{{ url_for('devices_help') }}" class="btn btn-ghost btn-block device-help-btn">How to connect any device</a>
-</section>
 <p class="section-desc" style="text-align:center;margin-top:16px">
   <a href="{{ url_for('privacy') }}">Privacy</a>
 </p>
