@@ -144,17 +144,30 @@ def _session_learn(word: str, coins: int = 0) -> None:
     db.save_play_session(uid, data)
 
 
+_ROUND_MIN_SECONDS_PER_WORD = 0.6
+
+
 def _start_round(mode: str, words) -> None:
     """Record which words the server actually handed out for this mode's round.
 
     /api/score checks a submitted answer against this list instead of trusting
     whatever "word" and "points" the client sends — otherwise anyone could POST
     directly to /api/score and farm unlimited coins without answering anything.
-    Each word can only be scored once per round to stop replaying the same word.
+
+    The round's target words are already visible to the client in the page HTML
+    (hints/speech need them), so a bare "is this word in the round" check isn't
+    enough — a script could just read the page and POST every word at once.
+    We also track an "index" (words must be claimed in the exact order the round
+    handed them out — no jumping ahead or scoring out of sequence) and "last_at"
+    (a minimum real-time gap is required between claims), so a script can't blast
+    through a whole round in milliseconds. This can't prove a word was actually
+    typed/spoken correctly — the client legitimately needs to know the target —
+    but it closes the practical bulk/instant-farming exploit without adding any
+    friction to a kid playing at a normal pace.
     """
     valid = list(dict.fromkeys((w or "").strip().lower() for w in words if w))
     rounds = session.get("active_rounds") or {}
-    rounds[mode] = {"words": valid, "awarded": []}
+    rounds[mode] = {"words": valid, "index": 0, "last_at": time.time()}
     session["active_rounds"] = rounds
 
 
@@ -1217,17 +1230,28 @@ def api_score():
         points = min(points, 99999)
     else:
         # Server-authoritative scoring: never trust a client-sent points value.
-        # The word must be one the server actually handed out for this mode's
-        # current round (see _start_round), and each round word can only be
-        # scored once — that's what stops a direct POST to this endpoint from
-        # farming coins without ever answering correctly.
+        # Words must be claimed one at a time, in the exact order the round
+        # handed them out (see _start_round) — submitting a word that isn't
+        # "up next" is rejected, so a script can't just read the round's word
+        # list off the page and claim every word out of order or all at once.
         rounds = session.get("active_rounds") or {}
         round_state = rounds.get(mode)
-        if not round_state or word not in round_state["words"]:
+        if not round_state:
             return jsonify({"error": "That word isn't part of your current round."}), 400
-        if word in round_state["awarded"]:
-            return jsonify({"error": "Already scored."}), 400
-        round_state["awarded"].append(word)
+
+        words_left = round_state["words"]
+        idx = round_state["index"]
+        if idx >= len(words_left) or word != words_left[idx]:
+            return jsonify({"error": "That word isn't part of your current round."}), 400
+
+        # Minimum real-time gap between claims — blocks a script from firing every
+        # word in a round back-to-back; invisible to a kid actually playing.
+        elapsed = time.time() - round_state["last_at"]
+        if elapsed < _ROUND_MIN_SECONDS_PER_WORD:
+            return jsonify({"error": "Slow down a little and try again."}), 429
+
+        round_state["index"] = idx + 1
+        round_state["last_at"] = time.time()
         rounds[mode] = round_state
         session["active_rounds"] = rounds
         points = MODE_CONFIG[mode]["points"]
