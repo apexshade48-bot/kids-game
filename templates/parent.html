@@ -23,26 +23,50 @@
   </form>
 </section>
 
-<section class="home-stats home-stats-compact" aria-label="Today">
-  <div class="stat-card stat-coins">
-    <span class="stat-num">🪙 {{ wallet.coins }}</span>
-    <span class="stat-label">Coins</span>
+{% if is_subscribed %}
+<section class="card section-card" style="border:2px solid #22c55e">
+  <h2>⭐ Premium active</h2>
+  <p class="section-desc">All levels are unlocked and weekly reports are on. Thanks for subscribing!</p>
+</section>
+{% endif %}
+
+<section class="home-stats home-stats-compact" aria-label="Progress">
+  <div class="stat-card">
+    <span class="stat-num">📚 {{ summary.total_words }}</span>
+    <span class="stat-label">Words learned</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-num">✨ {{ summary.words_this_week }}</span>
+    <span class="stat-label">New this week</span>
   </div>
   <div class="stat-card">
     <span class="stat-num">🔥 {{ progress.streak }}</span>
     <span class="stat-label">Day streak</span>
   </div>
-  <div class="stat-card">
-    <span class="stat-num">{{ progress.today.correct }}</span>
-    <span class="stat-label">Today correct</span>
-  </div>
 </section>
 
 <section class="card section-card">
-  <h2>Today</h2>
+  <h2>Progress</h2>
   <p class="section-desc">
-    {{ progress.today.correct }} right · {{ progress.today.attempts }} tries ·
-    🪙 {{ progress.today.coins_earned }} earned · {{ progress.week_correct }} this week
+    {{ progress.today.correct }} right today · {{ progress.today.attempts }} tries ·
+    🪙 {{ progress.today.coins_earned }} earned · {{ progress.week_correct }} correct this week ·
+    {{ summary.practice_days_this_week }} of the last 7 days played
+  </p>
+  <p class="section-desc">
+    🗣️ Speaking (Family phrases): <strong>{{ summary.family_mastered }} / {{ summary.family_total }}</strong> mastered
+  </p>
+</section>
+
+<section class="card section-card">
+  <h2>Share &amp; upgrade</h2>
+  <p class="section-desc">Show off progress, or unlock every level instantly.</p>
+  <p class="section-desc" style="display:flex;gap:10px;flex-wrap:wrap">
+    <a href="{{ url_for('parent_share') }}" class="btn btn-primary">📤 Share progress</a>
+    {% if not is_subscribed %}
+    <a href="{{ url_for('subscribe') }}" class="btn btn-ghost">⭐ Unlock everything</a>
+    {% else %}
+    <a href="{{ url_for('subscribe') }}" class="btn btn-ghost">Manage subscription</a>
+    {% endif %}
   </p>
 </section>
 

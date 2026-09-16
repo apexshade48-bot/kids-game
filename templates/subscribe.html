@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Subscribe{% endblock %}
+{% block body_class %}page-subscribe{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-kicker">For grown-ups</p>
+  <h1 class="big-title">Unlock everything</h1>
+  <p class="subtitle">All levels, no coin-grinding, plus weekly progress emails — {{ price }} PKR / month.</p>
+</section>
+
+{% if is_subscribed %}
+<section class="card section-card" style="border:2px solid #22c55e">
+  <h2>⭐ You're subscribed!</h2>
+  <p class="section-desc">
+    Active until <strong>{{ subscription.end_date }}</strong>. All levels are unlocked.
+  </p>
+</section>
+{% elif pending %}
+<section class="card section-card" style="border:2px solid #f59e0b">
+  <h2>⏳ Payment submitted</h2>
+  <p class="section-desc">
+    We've got your {{ pending.method }} payment (ref: {{ pending.reference or '—' }}) and
+    we're confirming it. This usually only takes a little while — everything unlocks
+    automatically the moment it's approved.
+  </p>
+</section>
+{% else %}
+
+<section class="card section-card">
+  <h2>What you get</h2>
+  <ul class="section-desc" style="padding-left:18px">
+    <li>Every level unlocked instantly — Normal, Hard, Top, and Family speaking</li>
+    <li>Weekly email: new words learned, streak, and speaking progress</li>
+    <li>Kids can still earn coins and unlock levels for free the normal way — this just skips the wait</li>
+  </ul>
+</section>
+
+<section class="card section-card">
+  <h2>Pay by JazzCash</h2>
+  {% if jazzcash_number %}
+  <p class="section-desc">Send <strong>Rs. {{ price }}</strong> via JazzCash to <strong>{{ jazzcash_number }}</strong>, then tell us the transaction ID below.</p>
+  {% else %}
+  <p class="section-desc">JazzCash number not set up yet — ask the app owner.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="method" value="jazzcash" />
+    <label>
+      JazzCash transaction ID
+      <input type="text" name="reference" maxlength="120" required placeholder="e.g. 123456789" />
+    </label>
+    <label>
+      Note (optional)
+      <input type="text" name="note" maxlength="200" placeholder="Anything we should know" />
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">I've sent it via JazzCash</button>
+  </form>
+</section>
+
+<section class="card section-card">
+  <h2>Pay by EasyPaisa</h2>
+  {% if easypaisa_number %}
+  <p class="section-desc">Send <strong>Rs. {{ price }}</strong> via EasyPaisa to <strong>{{ easypaisa_number }}</strong>, then tell us the transaction ID below.</p>
+  {% else %}
+  <p class="section-desc">EasyPaisa number not set up yet — ask the app owner.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="method" value="easypaisa" />
+    <label>
+      EasyPaisa transaction ID
+      <input type="text" name="reference" maxlength="120" required placeholder="e.g. 987654321" />
+    </label>
+    <label>
+      Note (optional)
+      <input type="text" name="note" maxlength="200" placeholder="Anything we should know" />
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">I've sent it via EasyPaisa</button>
+  </form>
+</section>
+
+<section class="card section-card">
+  <h2>Pay by Card</h2>
+  {% if card_enabled %}
+  <p class="section-desc">Card payments are set up but not wired to this page yet.</p>
+  {% else %}
+  <p class="section-desc">Card payments are coming soon. Please use JazzCash or EasyPaisa for now.</p>
+  {% endif %}
+</section>
+
+{% endif %}
+
+<p class="section-desc">
+  <a href="{{ url_for('home') }}" class="btn btn-ghost">Back to Home</a>
+</p>
+{% endblock %}

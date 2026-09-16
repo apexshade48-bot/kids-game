@@ -49,6 +49,23 @@
     return data;
   }
 
+  document.querySelectorAll("[data-resolve-payment]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const requestId = btn.dataset.resolvePayment;
+      const approve = btn.dataset.approve === "1";
+      if (approve && !confirm("Confirm this payment was received, and unlock the account?"))
+        return;
+      try {
+        await post("/admin/api/payments/" + requestId + "/resolve", { approve: approve });
+        showStatus(approve ? "Approved and unlocked!" : "Rejected.", true);
+        const row = document.getElementById("pay-row-" + requestId);
+        if (row) row.remove();
+      } catch (e) {
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
   document.querySelectorAll(".btn-save-coins").forEach(function (btn) {
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;

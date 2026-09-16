@@ -21,6 +21,22 @@ Code: [github.com/apexshade48-bot/kids-game](https://github.com/apexshade48-bot/
 - **Admin** — coins, unlock/lock modes, reset password, reset stars, roles  
 - **Leaderboard** per mode  
 - **Sounds** on correct / wrong / round complete
+- **Parent Dashboard** (`/parent`) — total words learned, new words this week, day streak, Family speaking progress
+- **Weekly email report** — sent to the saved parent email, e.g. "Ahmed learned 14 new words and can now say 'Good morning'"
+- **Share Progress** (`/parent/share`) — a WhatsApp-ready link and message a parent can forward, plus a public no-login `/share/<token>` summary card
+- **Subscription — 1,000 PKR/month** (`/subscribe`) — unlocks every level instantly (the free coin-unlock economy still works too); JazzCash/EasyPaisa via manual transaction confirmation (owner approves in `/admin`), card payments show "coming soon" until a real Stripe account is connected
+
+### Setting up the subscription flow
+
+1. Set `JAZZCASH_NUMBER` and/or `EASYPAISA_NUMBER` in `.env` to the account that receives payments.
+2. A parent sends 1,000 PKR, then reports the transaction ID on `/subscribe`.
+3. The request appears under **Pending payments** in `/admin` — check it against your own JazzCash/EasyPaisa account, then Approve (unlocks 30 days) or Reject.
+4. To send weekly reports automatically, set `WEEKLY_REPORT_CRON_KEY` in `.env` to a random secret, then add a PythonAnywhere **Scheduled Task** (free accounts get one) that runs once a week:
+   ```bash
+   curl -X POST https://your-site.pythonanywhere.com/admin/api/send-weekly-reports \
+     -H "X-Cron-Key: your-random-secret"
+   ```
+   Without `WEEKLY_REPORT_CRON_KEY` set, the endpoint only accepts an owner login session — you can still trigger it manually by visiting it while logged in as the owner.
 
 ## Run on your computer
 

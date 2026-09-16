@@ -4,6 +4,7 @@ import os
 import secrets
 import time
 from functools import wraps
+from urllib.parse import quote
 
 try:
     from dotenv import load_dotenv
@@ -751,6 +752,13 @@ def home():
         badges=db.get_user_badges(session["user_id"]),
         talk_preview=daily_talk_items()[:3],
         teacher_ready=ollama_teacher.ping(),
+        is_subscribed=db.is_subscribed(session["user_id"]),
+        subscription_price=db.SUBSCRIPTION_PRICE_PKR,
+        # Soft, non-blocking nudge: only show the upgrade card once the kid has
+        # played enough to have proven the game is fun (a handful of correct
+        # rounds), never on their very first visit.
+        show_upgrade_hint=progress["today"]["correct"] >= 6
+        or progress["week_correct"] >= 15,
     )
 
 
@@ -839,12 +847,15 @@ def parent_sheet():
         name=session.get("user_name", "Friend"),
         scores=db.get_user_scores(uid),
         progress=db.get_user_progress(uid),
+        summary=db.get_progress_summary(uid),
         wallet=db.get_user_wallet(uid),
         recent=db.get_recent_review_words(uid),
         modes=MODE_CONFIG,
         mode_order=MODE_ORDER,
         parent_email=db.get_parent_email(uid),
         likes=db.get_word_likes(uid),
+        subscription=db.get_subscription(uid),
+        is_subscribed=db.is_subscribed(uid),
     )
 
 
@@ -906,6 +917,81 @@ def api_play_stop():
             "message": msg,
             "redirect": url_for("home"),
         }
+    )
+
+
+@app.route("/parent/share")
+def parent_share():
+    """Parent-only page: preview + WhatsApp link for the public /share/<token> card."""
+    if not login_required():
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    summary = db.get_progress_summary(uid)
+    token = db.get_or_create_share_token(uid)
+    name = session.get("user_name", "Friend")
+    share_url = url_for("share_progress", token=token, _external=True)
+    if summary["total_words"] > 0:
+        message = (
+            f"My kid {name} learned {summary['total_words']} new English words "
+            f"with Word Stars! {share_url}"
+        )
+    else:
+        message = f"Check out Word Stars, the English word game my kid is playing! {share_url}"
+    return render_template(
+        "parent_share.html",
+        name=name,
+        summary=summary,
+        share_url=share_url,
+        whatsapp_url="https://wa.me/?text=" + quote(message),
+        message=message,
+    )
+
+
+@app.route("/share/<token>")
+def share_progress(token):
+    """Public, no-login progress card a parent can forward on WhatsApp. Shows
+    only the kid's chosen display name and aggregate learning stats — no email,
+    no password, nothing else from the account."""
+    user = db.get_user_by_share_token(token)
+    if not user:
+        flash("That share link isn't valid anymore.", "error")
+        return redirect(url_for("login"))
+    summary = db.get_progress_summary(user["id"])
+    return render_template(
+        "share_progress.html",
+        name=user["name"],
+        summary=summary,
+    )
+
+
+@app.route("/subscribe", methods=["GET", "POST"])
+def subscribe():
+    if not login_required():
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    if request.method == "POST":
+        method = request.form.get("method", "")
+        reference = request.form.get("reference", "")
+        note = request.form.get("note", "")
+        ok, result = db.create_subscription_request(uid, method, reference, note)
+        if not ok:
+            flash(str(result), "error")
+        else:
+            flash(
+                "Thanks! We'll confirm your payment and unlock everything shortly.",
+                "success",
+            )
+        return redirect(url_for("subscribe"))
+    return render_template(
+        "subscribe.html",
+        name=session.get("user_name", "Friend"),
+        price=db.SUBSCRIPTION_PRICE_PKR,
+        subscription=db.get_subscription(uid),
+        is_subscribed=db.is_subscribed(uid),
+        pending=db.get_pending_subscription_request(uid),
+        jazzcash_number=os.environ.get("JAZZCASH_NUMBER", ""),
+        easypaisa_number=os.environ.get("EASYPAISA_NUMBER", ""),
+        card_enabled=bool(os.environ.get("STRIPE_PUBLISHABLE_KEY")),
     )
 
 
@@ -1038,7 +1124,11 @@ def _require_unlocked_mode(mode: str):
         return None, redirect(url_for("home"))
     if not db.is_mode_unlocked(session["user_id"], mode):
         cost = db.UNLOCK_COSTS.get(mode, 0)
-        flash(f"Unlock {MODE_CONFIG[mode]['label']} with {cost} coins first!", "error")
+        flash(
+            f"Unlock {MODE_CONFIG[mode]['label']} with {cost} coins — "
+            f"or a grown-up can unlock everything instantly on the Subscribe page.",
+            "error",
+        )
         return None, redirect(url_for("home"))
     return MODE_CONFIG[mode], None
 
@@ -1572,7 +1662,68 @@ def admin_panel():
         unlock_costs=db.UNLOCK_COSTS,
         name=user_name or "Admin",
         is_owner=db.is_owner_admin_name(user_name),
+        pending_payments=db.list_pending_subscription_requests(),
+        subscription_price=db.SUBSCRIPTION_PRICE_PKR,
     )
+
+
+@app.route("/admin/api/payments/<int:request_id>/resolve", methods=["POST"])
+@admin_required
+def admin_api_resolve_payment(request_id):
+    data = request.get_json(silent=True) or {}
+    approve = bool(data.get("approve"))
+    ok, msg = db.resolve_subscription_request(
+        request_id, approve, session.get("user_name", "Admin")
+    )
+    if not ok:
+        return jsonify({"error": msg}), 400
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/admin/api/send-weekly-reports", methods=["POST"])
+def admin_api_send_weekly_reports():
+    """Bulk send, meant to be hit weekly by a PythonAnywhere Scheduled Task.
+    That task is a plain script, not a browser — it can't hold a login-session
+    cookie — so this accepts EITHER an owner login session OR a shared secret
+    (WEEKLY_REPORT_CRON_KEY) passed as the X-Cron-Key header. If that env var
+    isn't set, the cron-key path is disabled entirely (session login is still
+    always available). Idempotent: only sends to accounts that haven't gotten
+    a report in the last 6 days.
+    """
+    cron_key = os.environ.get("WEEKLY_REPORT_CRON_KEY", "")
+    given_key = request.headers.get("X-Cron-Key", "")
+    authorized_by_key = bool(cron_key) and secrets.compare_digest(given_key, cron_key)
+    if not authorized_by_key:
+        if not login_required():
+            return jsonify({"error": "Not logged in."}), 401
+        if not db.is_owner_admin_name(session.get("user_name", "")):
+            return jsonify({"error": "Apex Shade only."}), 403
+
+    due = db.get_users_due_weekly_report()
+    sent = 0
+    skipped = 0
+    for row in due:
+        new_words = db.get_newly_learned_words(row["id"])
+        if not new_words:
+            # Don't spam a parent with an empty "nothing happened" email.
+            skipped += 1
+            continue
+        summary = db.get_progress_summary(row["id"])
+        new_phrases = db.get_newly_mastered_phrases(row["id"])
+        ok, _msg = mailer.send_weekly_report_email(
+            row["parent_email"],
+            row["name"],
+            new_words,
+            new_phrases,
+            summary["total_words"],
+            summary["streak"],
+            summary["week_correct"],
+            log_dir=db.DB_PATH.parent,
+        )
+        if ok:
+            db.mark_weekly_report_sent(row["id"])
+            sent += 1
+    return jsonify({"ok": True, "sent": sent, "skipped_no_new_words": skipped, "checked": len(due)})
 
 
 @app.route("/admin/api/users")

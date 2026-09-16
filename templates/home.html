@@ -19,6 +19,14 @@
 <a href="{{ url_for('play', mode=play_now_mode or 'letters') }}" class="btn btn-primary btn-play-now js-reveal">▶ Play Letters</a>
 <a href="{{ url_for('play', mode='beginner') }}?pack=talk" class="btn btn-ghost btn-play-now js-reveal">🗣️ Daily Talk (2 min)</a>
 
+{% if show_upgrade_hint and not is_subscribed %}
+<section class="card section-card js-reveal" style="border:2px dashed #a78bfa">
+  <h2>⭐ Loving Word Stars?</h2>
+  <p class="section-desc">Unlock every level + get a parent report every week — {{ subscription_price }} PKR/month.</p>
+  <a href="{{ url_for('subscribe') }}" class="btn btn-primary">See plan</a>
+</section>
+{% endif %}
+
 {% if wotd %}
 <section class="card section-card wotd-card js-reveal">
   <h2>🌞 Word of the day</h2>

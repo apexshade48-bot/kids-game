@@ -99,6 +99,48 @@
   {% endif %}
 </section>
 
+<section class="admin-team card" id="pending-payments">
+  <h2>💳 Pending payments ({{ pending_payments | length }})</h2>
+  <p class="admin-team-desc">
+    Parent-reported JazzCash/EasyPaisa payments ({{ subscription_price }} PKR/month). Check the
+    transaction ID against your own JazzCash/EasyPaisa account before approving — approving
+    unlocks every level for that account for 30 days.
+  </p>
+  {% if pending_payments %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Method</th>
+          <th>Reference</th>
+          <th>Note</th>
+          <th>Requested</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in pending_payments %}
+        <tr id="pay-row-{{ req.id }}">
+          <td>{{ req.name }}</td>
+          <td>{{ req.method }}</td>
+          <td>{{ req.reference or '—' }}</td>
+          <td>{{ req.note or '—' }}</td>
+          <td>{{ req.created_at }}</td>
+          <td>
+            <button type="button" class="btn btn-primary" data-resolve-payment="{{ req.id }}" data-approve="1">Approve</button>
+            <button type="button" class="btn btn-ghost" data-resolve-payment="{{ req.id }}" data-approve="0">Reject</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="admin-team-empty">No pending payments.</p>
+  {% endif %}
+</section>
+
 <section class="admin-users card">
   <h2>All players</h2>
   <div class="admin-table-wrap">

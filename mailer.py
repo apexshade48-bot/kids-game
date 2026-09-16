@@ -66,24 +66,23 @@ def build_review_text(
     return "\n".join(lines)
 
 
-def send_parent_stop_email(
-    to_email: str,
-    kid_name: str,
-    coins: int,
-    learned: list[str],
-    mistakes: list[dict],
-    started: str | None = None,
-    log_dir: Path | None = None,
+def _safe_header_text(text: str) -> str:
+    """Strip \\r/\\n before anything reaches an email header — that's how header
+    injection works, regardless of whatever validation the caller already did."""
+    return (text or "").replace("\r", "").replace("\n", "")
+
+
+def _send_email(
+    to_email: str, subject: str, body: str, log_dir: Path | None = None
 ) -> tuple[bool, str]:
+    """Shared send path for every outgoing parent email (stop-review, weekly
+    report, ...). Falls back to a local log file when SMTP isn't configured,
+    so the app still "works" (visibly, for a dev) without real credentials."""
     to_email = (to_email or "").strip()
     if not to_email or "@" not in to_email:
         return False, "No parent email on this account."
 
-    body = build_review_text(kid_name, coins, learned, mistakes, started)
-    # Defense in depth: create_user() already whitelists name characters, but never
-    # let \r/\n from any caller reach a header — that's how header injection works.
-    safe_kid_name = (kid_name or "").replace("\r", "").replace("\n", "")
-    subject = f"{safe_kid_name} stopped playing Word Stars"
+    subject = _safe_header_text(subject)
 
     if smtp_ready():
         try:
@@ -109,7 +108,7 @@ def send_parent_stop_email(
                     if user:
                         smtp.login(user, password)
                     smtp.send_message(msg)
-            return True, f"We emailed the review to {to_email}."
+            return True, f"We emailed {to_email}."
         except Exception as exc:
             return False, f"Could not send email ({exc})."
 
@@ -118,7 +117,7 @@ def send_parent_stop_email(
             log_dir.mkdir(parents=True, exist_ok=True)
             path = log_dir / "parent_mail.log"
             with path.open("a", encoding="utf-8") as fh:
-                fh.write(f"\n--- {datetime.now().isoformat()} to {to_email} ---\n")
+                fh.write(f"\n--- {datetime.now().isoformat()} to {to_email} ({subject}) ---\n")
                 fh.write(body)
                 fh.write("\n")
         except OSError:
@@ -127,3 +126,73 @@ def send_parent_stop_email(
         False,
         "Parent email is saved, but sending is not set up yet. Add SMTP_HOST in .env.",
     )
+
+
+def send_parent_stop_email(
+    to_email: str,
+    kid_name: str,
+    coins: int,
+    learned: list[str],
+    mistakes: list[dict],
+    started: str | None = None,
+    log_dir: Path | None = None,
+) -> tuple[bool, str]:
+    body = build_review_text(kid_name, coins, learned, mistakes, started)
+    subject = f"{_safe_header_text(kid_name)} stopped playing Word Stars"
+    return _send_email(to_email, subject, body, log_dir)
+
+
+def build_weekly_report_text(
+    kid_name: str,
+    new_words: list[str],
+    new_phrases: list[str],
+    total_words: int,
+    streak: int,
+    week_correct: int,
+) -> str:
+    """The email that's meant to make a parent go 'wow, worth 1000 PKR/month' —
+    and worth forwarding to a group chat."""
+    lines = [
+        f"Hi,",
+        "",
+        f"Here's how {kid_name} did on Word Stars this week:",
+        "",
+    ]
+    if new_words:
+        sample = ", ".join(f"'{w}'" for w in new_words[:6])
+        lines.append(f"📚 {len(new_words)} new words learned, including {sample}.")
+    else:
+        lines.append("📚 No brand-new words this week — a good week to keep the streak going!")
+    if new_phrases:
+        sample = ", ".join(f"'{p}'" for p in new_phrases[:3])
+        lines.append(f"🗣️ Can now say: {sample}.")
+    lines.append(f"✅ {week_correct} correct answers this week.")
+    if streak >= 2:
+        lines.append(f"🔥 {streak}-day play streak!")
+    lines.append(f"⭐ {total_words} words learned in total so far.")
+    lines.append("")
+    lines.append("Keep it up — a few minutes a day adds up fast.")
+    lines.append("")
+    lines.append("— Word Stars")
+    return "\n".join(lines)
+
+
+def send_weekly_report_email(
+    to_email: str,
+    kid_name: str,
+    new_words: list[str],
+    new_phrases: list[str],
+    total_words: int,
+    streak: int,
+    week_correct: int,
+    log_dir: Path | None = None,
+) -> tuple[bool, str]:
+    body = build_weekly_report_text(
+        kid_name, new_words, new_phrases, total_words, streak, week_correct
+    )
+    safe_name = _safe_header_text(kid_name)
+    if new_words:
+        subject = f"{safe_name} learned {len(new_words)} new words this week! ⭐"
+    else:
+        subject = f"{safe_name}'s Word Stars weekly report"
+    return _send_email(to_email, subject, body, log_dir)

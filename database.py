@@ -1,6 +1,7 @@
 """SQLite helpers for users, mode scores, coins, and unlocks."""
 
 import os
+import secrets
 import sqlite3
 from pathlib import Path
 
@@ -157,6 +158,10 @@ def _ensure_user_columns(conn):
         conn.execute("ALTER TABLE users ADD COLUMN equipped_name TEXT")
     if "parent_email" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN parent_email TEXT")
+    if "share_token" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN share_token TEXT")
+    if "last_weekly_report_sent" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN last_weekly_report_sent TEXT")
 
 
 def get_owner_admin_name() -> str:
@@ -325,6 +330,7 @@ def init_db():
         _ensure_likes_table(conn)
         _ensure_badge_tables(conn)
         _ensure_fluency_table(conn)
+        _ensure_subscription_table(conn)
         _ensure_admin_user(conn)
         _ensure_starter_clothes(conn)
         conn.commit()
@@ -429,6 +435,40 @@ def set_parent_email(user_id: int, email: str | None) -> tuple[bool, str]:
         )
         conn.commit()
         return True, cleaned
+    finally:
+        conn.close()
+
+
+def get_or_create_share_token(user_id: int) -> str:
+    """Opaque id used by the public /share/<token> progress page — never the
+    user's real id or name-based, so it can't be guessed or enumerated."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT share_token FROM users WHERE id = ?", (int(user_id),)
+        ).fetchone()
+        if row and row["share_token"]:
+            return row["share_token"]
+        token = secrets.token_urlsafe(16)
+        conn.execute(
+            "UPDATE users SET share_token = ? WHERE id = ?", (token, int(user_id))
+        )
+        conn.commit()
+        return token
+    finally:
+        conn.close()
+
+
+def get_user_by_share_token(token: str) -> dict | None:
+    token = (token or "").strip()
+    if not token:
+        return None
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, name FROM users WHERE share_token = ?", (token,)
+        ).fetchone()
+        return {"id": row["id"], "name": row["name"]} if row else None
     finally:
         conn.close()
 
@@ -1153,6 +1193,11 @@ def is_mode_unlocked(user_id: int, mode: str) -> bool:
         return True
     if is_user_god(user_id):
         return True
+    if is_subscribed(user_id):
+        # A paid subscription unlocks every mode instantly — it doesn't replace
+        # the coin-unlock economy, it's an alternative path for parents who'd
+        # rather not wait for their kid to grind coins.
+        return True
     return mode in get_unlocked_modes(user_id)
 
 
@@ -1241,6 +1286,131 @@ def get_user_progress(user_id: int) -> dict:
             "week_correct": int(week_rows["c"]) if week_rows else 0,
             "week_coins": int(week_rows["coins"]) if week_rows else 0,
         }
+    finally:
+        conn.close()
+
+
+def get_progress_summary(user_id: int) -> dict:
+    """Parent-facing progress snapshot: words learned, speaking progress, streak.
+
+    Distinct from get_user_progress() (today/streak/week activity counts) — this
+    adds the "proof of learning" numbers parents actually want to see and share:
+    total distinct words ever learned, new words learned in the last 7 days
+    (using review_words.first_at, not last_at, so repeated reviews don't inflate
+    "new this week"), and how many Family spoken-English phrases are mastered.
+    """
+    import words as _words
+
+    conn = get_connection()
+    try:
+        total_row = conn.execute(
+            """
+            SELECT COUNT(DISTINCT word) AS c FROM review_words
+            WHERE user_id = ? AND mode != ?
+            """,
+            (int(user_id), FLUENCY_MODE),
+        ).fetchone()
+        week_row = conn.execute(
+            """
+            SELECT COUNT(DISTINCT word) AS c FROM review_words
+            WHERE user_id = ? AND mode != ? AND first_at >= date('now', '-6 days')
+            """,
+            (int(user_id), FLUENCY_MODE),
+        ).fetchone()
+        practice_days_row = conn.execute(
+            """
+            SELECT COUNT(DISTINCT day) AS c FROM activity
+            WHERE user_id = ? AND correct > 0 AND day >= date('now', '-6 days')
+            """,
+            (int(user_id),),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    progress = get_user_progress(user_id)
+    family_total = len(_words.IMPOSSIBLE_PHRASES)
+    return {
+        "total_words": int(total_row["c"] or 0) if total_row else 0,
+        "words_this_week": int(week_row["c"] or 0) if week_row else 0,
+        "practice_days_this_week": int(practice_days_row["c"] or 0) if practice_days_row else 0,
+        "family_mastered": count_family_mastered(user_id),
+        "family_total": family_total,
+        "streak": progress["streak"],
+        "week_correct": progress["week_correct"],
+        "today_correct": progress["today"]["correct"],
+    }
+
+
+def get_newly_learned_words(user_id: int, days: int = 7, limit: int = 20) -> list[str]:
+    """Words first answered correctly in the last N days — for the weekly email."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT word FROM review_words
+            WHERE user_id = ? AND mode != ? AND first_at >= date('now', ?)
+            ORDER BY first_at DESC
+            LIMIT ?
+            """,
+            (int(user_id), FLUENCY_MODE, f"-{int(days)} days", int(limit)),
+        ).fetchall()
+        return [str(r["word"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_newly_mastered_phrases(user_id: int, days: int = 7, limit: int = 6) -> list[str]:
+    """Family spoken-English phrases first answered correctly in the last N days."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT word FROM review_words
+            WHERE user_id = ? AND mode = ? AND first_at >= date('now', ?)
+            ORDER BY first_at DESC
+            LIMIT ?
+            """,
+            (int(user_id), FLUENCY_MODE, f"-{int(days)} days", int(limit)),
+        ).fetchall()
+        return [str(r["word"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_users_due_weekly_report() -> list[dict]:
+    """Everyone with a parent email who: has played in the last 14 days (so we
+    don't email parents of abandoned accounts) and hasn't already gotten a
+    report in the last 6 days (so re-running the send task is safe/idempotent).
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT u.id, u.name, u.parent_email
+            FROM users u
+            WHERE u.parent_email IS NOT NULL AND u.parent_email != ''
+              AND (u.last_weekly_report_sent IS NULL
+                   OR u.last_weekly_report_sent <= date('now', '-6 days'))
+              AND EXISTS (
+                  SELECT 1 FROM activity a
+                  WHERE a.user_id = u.id AND a.day >= date('now', '-14 days')
+                    AND (a.correct > 0 OR a.attempts > 0)
+              )
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def mark_weekly_report_sent(user_id: int) -> None:
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE users SET last_weekly_report_sent = date('now') WHERE id = ?",
+            (int(user_id),),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -2500,6 +2670,14 @@ def _ensure_review_table(conn) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_review_user_time ON review_words(user_id, last_at)"
     )
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(review_words)").fetchall()}
+    if "first_at" not in cols:
+        # Tracks when a word was FIRST answered correctly, separate from last_at
+        # (which updates on every repeat review). Needed to count "new words
+        # learned this week" for the parent dashboard/weekly email without
+        # double-counting words the kid is just reviewing again.
+        conn.execute("ALTER TABLE review_words ADD COLUMN first_at TEXT")
+        conn.execute("UPDATE review_words SET first_at = last_at WHERE first_at IS NULL")
 
 
 def record_review_word(user_id: int, mode: str, word: str) -> None:
@@ -2511,8 +2689,8 @@ def record_review_word(user_id: int, mode: str, word: str) -> None:
     try:
         conn.execute(
             """
-            INSERT INTO review_words (user_id, mode, word, hits, last_at)
-            VALUES (?, ?, ?, 1, datetime('now'))
+            INSERT INTO review_words (user_id, mode, word, hits, last_at, first_at)
+            VALUES (?, ?, ?, 1, datetime('now'), datetime('now'))
             ON CONFLICT(user_id, mode, word) DO UPDATE SET
                 hits = hits + 1,
                 last_at = datetime('now')
@@ -2585,6 +2763,236 @@ def _ensure_fluency_table(conn) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_fluency_user_time ON fluency_attempts(user_id, taken_at)"
     )
+
+
+SUBSCRIPTION_PRICE_PKR = 1000
+SUBSCRIPTION_MONTH_DAYS = 30
+SUBSCRIPTION_METHODS = ("jazzcash", "easypaisa", "card")
+
+
+def _ensure_subscription_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            user_id INTEGER PRIMARY KEY,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            start_date TEXT,
+            end_date TEXT,
+            method TEXT,
+            reference TEXT,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS subscription_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            method TEXT NOT NULL,
+            reference TEXT,
+            note TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at TEXT,
+            resolved_by TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sub_requests_status ON subscription_requests(status)"
+    )
+
+
+def get_subscription(user_id: int) -> dict:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT is_active, start_date, end_date, method FROM subscriptions WHERE user_id = ?",
+            (int(user_id),),
+        ).fetchone()
+        if not row:
+            return {"is_active": False, "start_date": None, "end_date": None, "method": None}
+        active = bool(row["is_active"]) and bool(row["end_date"])
+        return {
+            "is_active": active,
+            "start_date": row["start_date"],
+            "end_date": row["end_date"],
+            "method": row["method"],
+        }
+    finally:
+        conn.close()
+
+
+def is_subscribed(user_id: int) -> bool:
+    """True if the account has a paid subscription that hasn't expired yet."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT 1 FROM subscriptions
+            WHERE user_id = ? AND is_active = 1 AND end_date >= date('now')
+            """,
+            (int(user_id),),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def activate_subscription(
+    user_id: int, months: int = 1, method: str | None = None, reference: str | None = None
+) -> tuple[bool, str]:
+    """Owner/admin action: grant or extend a subscription. Stacks on top of any
+    remaining time rather than overwriting it, so an early renewal isn't wasted."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id FROM users WHERE id = ?", (int(user_id),)
+        ).fetchone()
+        if not row:
+            return False, "User not found."
+        existing = conn.execute(
+            "SELECT end_date FROM subscriptions WHERE user_id = ?", (int(user_id),)
+        ).fetchone()
+        base = "date('now')"
+        if existing and existing["end_date"]:
+            base = "MAX(date('now'), date(?))"
+        days = int(months) * SUBSCRIPTION_MONTH_DAYS
+        if existing and existing["end_date"]:
+            conn.execute(
+                f"""
+                INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, updated_at)
+                VALUES (?, 1, date('now'), date({base}, ? || ' days'), ?, ?, datetime('now'))
+                ON CONFLICT(user_id) DO UPDATE SET
+                    is_active = 1,
+                    end_date = date({base}, ? || ' days'),
+                    method = excluded.method,
+                    reference = excluded.reference,
+                    updated_at = datetime('now')
+                """,
+                (
+                    int(user_id), existing["end_date"], f"+{days}", method, reference,
+                    existing["end_date"], f"+{days}",
+                ),
+            )
+        else:
+            conn.execute(
+                f"""
+                INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, updated_at)
+                VALUES (?, 1, date('now'), date('now', ? || ' days'), ?, ?, datetime('now'))
+                ON CONFLICT(user_id) DO UPDATE SET
+                    is_active = 1,
+                    start_date = date('now'),
+                    end_date = date('now', ? || ' days'),
+                    method = excluded.method,
+                    reference = excluded.reference,
+                    updated_at = datetime('now')
+                """,
+                (int(user_id), f"+{days}", method, reference, f"+{days}"),
+            )
+        conn.commit()
+        return True, "Subscription activated."
+    finally:
+        conn.close()
+
+
+def create_subscription_request(
+    user_id: int, method: str, reference: str, note: str = ""
+) -> tuple[bool, str | int]:
+    """Parent reports "I sent the payment" — creates a pending row for the owner
+    to confirm against their JazzCash/EasyPaisa account before activating."""
+    method = (method or "").strip().lower()
+    if method not in SUBSCRIPTION_METHODS:
+        return False, "Please choose a payment method."
+    reference = (reference or "").strip()[:120]
+    note = (note or "").strip()[:300]
+    if method in ("jazzcash", "easypaisa") and not reference:
+        return False, "Please enter the transaction ID from your payment app."
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM subscription_requests WHERE user_id = ? AND status = 'pending'",
+            (int(user_id),),
+        ).fetchone()
+        if existing:
+            return False, "You already have a payment waiting for approval."
+        cur = conn.execute(
+            """
+            INSERT INTO subscription_requests (user_id, method, reference, note)
+            VALUES (?, ?, ?, ?)
+            """,
+            (int(user_id), method, reference, note),
+        )
+        conn.commit()
+        return True, cur.lastrowid
+    finally:
+        conn.close()
+
+
+def get_pending_subscription_request(user_id: int) -> dict | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT id, method, reference, note, created_at FROM subscription_requests
+            WHERE user_id = ? AND status = 'pending'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (int(user_id),),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_pending_subscription_requests() -> list[dict]:
+    """For the admin panel: every parent-reported payment awaiting approval."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT sr.id, sr.user_id, u.name, sr.method, sr.reference, sr.note, sr.created_at
+            FROM subscription_requests sr
+            JOIN users u ON u.id = sr.user_id
+            WHERE sr.status = 'pending'
+            ORDER BY sr.created_at ASC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def resolve_subscription_request(
+    request_id: int, approve: bool, actor_name: str
+) -> tuple[bool, str]:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, user_id, status FROM subscription_requests WHERE id = ?",
+            (int(request_id),),
+        ).fetchone()
+        if not row:
+            return False, "Request not found."
+        if row["status"] != "pending":
+            return False, "Already resolved."
+        conn.execute(
+            """
+            UPDATE subscription_requests
+            SET status = ?, resolved_at = datetime('now'), resolved_by = ?
+            WHERE id = ?
+            """,
+            ("approved" if approve else "rejected", actor_name, int(request_id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    if approve:
+        return activate_subscription(row["user_id"], months=1)
+    return True, "Payment request rejected."
 
 
 def count_family_mastered(user_id: int) -> int:

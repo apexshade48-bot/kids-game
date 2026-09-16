@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Share progress{% endblock %}
+{% block body_class %}page-parent{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="hero-kicker">For grown-ups</p>
+  <h1 class="big-title">Share {{ name }}'s progress</h1>
+  <p class="subtitle">A link you can forward on WhatsApp — no login needed to view it.</p>
+</section>
+
+<section class="card section-card" style="text-align:center">
+  <h2>⭐ {{ summary.total_words }} words learned</h2>
+  <p class="section-desc">
+    {{ summary.words_this_week }} new this week · 🔥 {{ summary.streak }}-day streak
+    {% if summary.family_mastered %} · 🗣️ {{ summary.family_mastered }} phrases mastered{% endif %}
+  </p>
+</section>
+
+<section class="card section-card">
+  <h2>Message preview</h2>
+  <p class="section-desc" id="share-message" style="white-space:pre-wrap">{{ message }}</p>
+  <p class="section-desc" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+    <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="btn btn-primary">💬 Share on WhatsApp</a>
+    <button type="button" class="btn btn-ghost" id="copy-link-btn" data-link="{{ share_url }}">🔗 Copy link</button>
+  </p>
+</section>
+
+<p class="section-desc">
+  <a href="{{ url_for('parent_sheet') }}" class="btn btn-ghost">Back to Parent sheet</a>
+</p>
+
+<script>
+  (function () {
+    var btn = document.getElementById("copy-link-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var link = btn.getAttribute("data-link");
+      var done = function () {
+        var old = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function () { btn.textContent = old; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done).catch(function () {});
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -27,6 +27,11 @@
     <span class="more-title">Parent</span>
     <span class="more-sub">{% if parent_email %}{{ parent_email }}{% else %}Star sheet &amp; email{% endif %}</span>
   </a>
+  <a href="{{ url_for('subscribe') }}" class="more-tile">
+    <span class="more-emoji">⭐</span>
+    <span class="more-title">Subscribe</span>
+    <span class="more-sub">Unlock everything</span>
+  </a>
   <a href="{{ url_for('settings_page') }}" class="more-tile">
     <span class="more-emoji">🎨</span>
     <span class="more-title">Background</span>
