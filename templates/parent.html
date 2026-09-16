@@ -26,7 +26,7 @@
 {% if is_subscribed %}
 <section class="card section-card" style="border:2px solid #22c55e">
   <h2>⭐ Premium active</h2>
-  <p class="section-desc">All levels are unlocked and weekly reports are on. Thanks for subscribing!</p>
+  <p class="section-desc">Weekly email reports are on. Thanks for subscribing!</p>
 </section>
 {% endif %}
 
@@ -63,7 +63,7 @@
   <p class="section-desc" style="display:flex;gap:10px;flex-wrap:wrap">
     <a href="{{ url_for('parent_share') }}" class="btn btn-primary">📤 Share progress</a>
     {% if not is_subscribed %}
-    <a href="{{ url_for('subscribe') }}" class="btn btn-ghost">⭐ Unlock everything</a>
+    <a href="{{ url_for('subscribe') }}" class="btn btn-ghost">⭐ Weekly reports</a>
     {% else %}
     <a href="{{ url_for('subscribe') }}" class="btn btn-ghost">Manage subscription</a>
     {% endif %}

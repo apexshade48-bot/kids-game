@@ -24,7 +24,7 @@ Code: [github.com/apexshade48-bot/kids-game](https://github.com/apexshade48-bot/
 - **Parent Dashboard** (`/parent`) — total words learned, new words this week, day streak, Family speaking progress
 - **Weekly email report** — sent to the saved parent email, e.g. "Ahmed learned 14 new words and can now say 'Good morning'"
 - **Share Progress** (`/parent/share`) — a WhatsApp-ready link and message a parent can forward, plus a public no-login `/share/<token>` summary card
-- **Subscription — 1,000 PKR/month** (`/subscribe`) — unlocks every level instantly (the free coin-unlock economy still works too); JazzCash/EasyPaisa via manual transaction confirmation (owner approves in `/admin`), card payments show "coming soon" until a real Stripe account is connected
+- **Subscription — 1,000 PKR/month** (`/subscribe`) — weekly email reports + the Parent Dashboard; does **not** unlock any level, every kid (subscribed or not) unlocks Normal/Hard/Top/Family the same way, by earning coins. JazzCash/EasyPaisa via manual transaction confirmation (owner approves in `/admin`), card payments show "coming soon" until a real Stripe account is connected. A self-serve 7-day free trial is available once per account.
 
 ### Setting up the subscription flow
 

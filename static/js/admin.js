@@ -53,11 +53,11 @@
     btn.addEventListener("click", async function () {
       const requestId = btn.dataset.resolvePayment;
       const approve = btn.dataset.approve === "1";
-      if (approve && !confirm("Confirm this payment was received, and unlock the account?"))
+      if (approve && !confirm("Confirm this payment was received, and turn on weekly reports?"))
         return;
       try {
         await post("/admin/api/payments/" + requestId + "/resolve", { approve: approve });
-        showStatus(approve ? "Approved and unlocked!" : "Rejected.", true);
+        showStatus(approve ? "Approved — weekly reports on!" : "Rejected.", true);
         const row = document.getElementById("pay-row-" + requestId);
         if (row) row.remove();
       } catch (e) {
@@ -69,10 +69,10 @@
   document.querySelectorAll(".btn-grant-sub").forEach(function (btn) {
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;
-      if (!confirm("Give this player a free month, no payment involved?")) return;
+      if (!confirm("Turn on weekly email reports for this player, free for a month? (This does not unlock any levels.)")) return;
       try {
         await post("/admin/api/user/" + userId + "/subscription/grant", {});
-        showStatus("Free month granted!", true);
+        showStatus("Weekly reports turned on!", true);
         setTimeout(function () {
           window.location.reload();
         }, 600);

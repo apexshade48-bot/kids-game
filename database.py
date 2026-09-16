@@ -1193,11 +1193,10 @@ def is_mode_unlocked(user_id: int, mode: str) -> bool:
         return True
     if is_user_god(user_id):
         return True
-    if is_subscribed(user_id):
-        # A paid subscription unlocks every mode instantly — it doesn't replace
-        # the coin-unlock economy, it's an alternative path for parents who'd
-        # rather not wait for their kid to grind coins.
-        return True
+    # A subscription does NOT unlock modes — every kid, subscribed or not,
+    # unlocks Normal/Hard/Top/Family the same way: by earning coins. The
+    # subscription's value is the weekly parent email/dashboard, not a
+    # shortcut around the coin economy.
     return mode in get_unlocked_modes(user_id)
 
 

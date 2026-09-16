@@ -1151,11 +1151,7 @@ def _require_unlocked_mode(mode: str):
         return None, redirect(url_for("home"))
     if not db.is_mode_unlocked(session["user_id"], mode):
         cost = db.UNLOCK_COSTS.get(mode, 0)
-        flash(
-            f"Unlock {MODE_CONFIG[mode]['label']} with {cost} coins — "
-            f"or a grown-up can unlock everything instantly on the Subscribe page.",
-            "error",
-        )
+        flash(f"Unlock {MODE_CONFIG[mode]['label']} with {cost} coins first!", "error")
         return None, redirect(url_for("home"))
     return MODE_CONFIG[mode], None
 

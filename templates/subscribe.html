@@ -5,8 +5,11 @@
 {% block content %}
 <section class="hero">
   <p class="hero-kicker">For grown-ups</p>
-  <h1 class="big-title">{% if welcome %}Welcome!{% else %}Unlock everything{% endif %}</h1>
-  <p class="subtitle">All levels, no coin-grinding, plus weekly progress emails — {{ price }} PKR / month.</p>
+  <h1 class="big-title">{% if welcome %}Welcome!{% else %}Weekly progress reports{% endif %}</h1>
+  <p class="subtitle">
+    A weekly email + dashboard on how your kid is doing — {{ price }} PKR / month.
+    Levels are always unlocked by earning coins, subscribed or not.
+  </p>
 </section>
 
 {% if welcome and not is_subscribed %}
@@ -17,7 +20,7 @@
 <section class="card section-card" style="border:2px solid #22c55e">
   <h2>⭐ You're subscribed!</h2>
   <p class="section-desc">
-    Active until <strong>{{ subscription.end_date }}</strong>. All levels are unlocked.
+    Active until <strong>{{ subscription.end_date }}</strong>. Weekly email reports are on.
   </p>
 </section>
 {% elif pending %}
@@ -25,8 +28,8 @@
   <h2>⏳ Payment submitted</h2>
   <p class="section-desc">
     We've got your {{ pending.method }} payment (ref: {{ pending.reference or '—' }}) and
-    we're confirming it. This usually only takes a little while — everything unlocks
-    automatically the moment it's approved.
+    we're confirming it. Weekly email reports switch on automatically the moment
+    it's approved.
   </p>
 </section>
 {% else %}
@@ -34,16 +37,16 @@
 <section class="card section-card">
   <h2>What you get</h2>
   <ul class="section-desc" style="padding-left:18px">
-    <li>Every level unlocked instantly — Normal, Hard, Top, and Family speaking</li>
     <li>Weekly email: new words learned, streak, and speaking progress</li>
-    <li>Kids can still earn coins and unlock levels for free the normal way — this just skips the wait</li>
+    <li>The Parent Dashboard's full detail, always up to date</li>
+    <li>Levels still unlock the normal way, for everyone — by earning coins. Subscribing doesn't skip that.</li>
   </ul>
 </section>
 
 {% if trial_available %}
 <section class="card section-card" style="border:2px solid #7c3aed">
   <h2>🎁 Try it free for {{ trial_days }} days</h2>
-  <p class="section-desc">No payment, no transaction ID — just try everything unlocked for a week. One trial per account.</p>
+  <p class="section-desc">No payment, no transaction ID — try the weekly email report free for a week. One trial per account.</p>
   <form method="post" action="{{ url_for('subscribe_trial') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <button type="submit" class="btn btn-primary btn-block">Start my {{ trial_days }}-day free trial</button>
