@@ -342,7 +342,7 @@
     }
   }
 
-  async function awardPoints() {
+  async function awardPoints(answer) {
     try {
       const res = await fetch(scoreUrl, {
         method: "POST",
@@ -356,6 +356,7 @@
           mode: mode,
           points: pointsPerWord,
           word: (current() && current().word) || "",
+          answer: answer || (current() && current().word) || "",
         }),
       });
       const data = await parseJsonResponse(res);
@@ -390,7 +391,7 @@
     }
   }
 
-  function onCorrect(source) {
+  function onCorrect(source, answer) {
     if (busy) return;
     busy = true;
     hardStopMic();
@@ -420,7 +421,7 @@
     try {
       if (sfx && sfx.correct) sfx.correct();
     } catch (e) {}
-    awardPoints();
+    awardPoints(answer);
 
     window.setTimeout(function () {
       if (els.targetWord) els.targetWord.classList.remove("celebrate");
@@ -537,7 +538,7 @@
         : typedIsCorrect(item, answer)
     ) {
       setTyped(want, true);
-      onCorrect(source || "type");
+      onCorrect(source || "type", answer);
     } else {
       onWrong(source === "voice" ? answer : null);
     }

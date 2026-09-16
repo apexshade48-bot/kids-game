@@ -166,7 +166,7 @@
     });
   }
 
-  async function awardPoints() {
+  async function awardPoints(answer) {
     try {
       const res = await fetch(scoreUrl, {
         method: "POST",
@@ -180,6 +180,7 @@
           mode: mode,
           points: pointsPerWord,
           word: (current() && current().word) || "",
+          answer: answer || (current() && current().word) || "",
         }),
       });
       const data = await parseJsonResponse(res);
@@ -252,7 +253,10 @@
         }, 700);
       }
       if (sfx && sfx.correct) sfx.correct();
-      awardPoints();
+      // Picture quiz choices are already the full word; the letter quiz only
+      // asks for the missing letter, so the confirmed full word is what
+      // proves the answer (matches what the server's round expects).
+      awardPoints(isPicture() ? choice : q.word || "");
     } else {
       if (!isPicture()) renderBlankWord(q, want);
       els.feedback.textContent =

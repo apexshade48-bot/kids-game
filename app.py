@@ -1,6 +1,7 @@
 """Kids Word Game — Flask app for ages 4–5."""
 
 import os
+import re
 import secrets
 import time
 from functools import wraps
@@ -32,8 +33,10 @@ import ollama_teacher
 from network import DEFAULT_PORT, get_device_urls
 from words import (
     IMPOSSIBLE_PHRASES,
+    LETTER_SAY,
     MODE_CONFIG,
     MODE_ORDER,
+    SIGHT_SAY,
     get_fluency_test_questions,
     get_picture_quiz_questions,
     get_quiz_questions,
@@ -156,6 +159,66 @@ def _session_learn(word: str, coins: int = 0) -> None:
 
 
 _ROUND_MIN_SECONDS_PER_WORD = 0.6
+_ROUND_MAX_AGE_SECONDS = 2 * 60 * 60  # ignore rounds abandoned/left open this long
+
+
+def normalize_answer(text: str, allow_spaces: bool = False) -> str:
+    """Normalize a submitted or expected answer so comparisons are consistent.
+
+    Shared by /api/score and battle mode so "the same text" always compares
+    equal no matter where it came from (typed, spoken, or the round's target
+    word list). Normal single-word modes keep letters only (voice input adds
+    stray spaces/punctuation); phrase modes (Family) keep single spaces since
+    multi-word answers matter there.
+    """
+    s = (text or "").strip().lower()
+    if allow_spaces:
+        s = re.sub(r"[^a-z ]", "", s)
+        s = re.sub(r"\s+", " ", s).strip()
+    else:
+        s = re.sub(r"[^a-z]", "", s)
+    return s
+
+
+def _answer_is_correct(mode: str, target: str, answer: str, allow_spaces: bool) -> bool:
+    """Check a submitted answer against the round's target word/phrase.
+
+    Mirrors static/js/game.js's speechMatches()/typedIsCorrect() tolerance —
+    short phrases that contain the target word, and the Letters/Beginner
+    spoken aliases (LETTER_SAY/SIGHT_SAY) — so any answer the client's own
+    checker treats as correct also passes here. The goal isn't to be a
+    stricter checker than the UI, just to stop /api/score from being called
+    with no real answer at all.
+    """
+    want = normalize_answer(target, allow_spaces)
+    got = normalize_answer(answer, allow_spaces)
+    if not want or not got:
+        return False
+    if got == want:
+        return True
+
+    tokens = [
+        normalize_answer(t) for t in re.split(r"\s+", str(answer or "").lower())
+    ]
+    tokens = [t for t in tokens if t]
+    if len(tokens) <= 3 and want in tokens:
+        return True
+    if "".join(tokens) == want:
+        return True
+
+    aliases = None
+    if mode == "letters":
+        aliases = LETTER_SAY.get(want)
+    elif mode == "beginner":
+        aliases = SIGHT_SAY.get(want)
+    if aliases:
+        for alias in aliases:
+            alias_n = normalize_answer(alias)
+            if got == alias_n or (len(tokens) <= 3 and alias_n in tokens):
+                return True
+        if tokens[:1] == [want]:
+            return True
+    return False
 
 
 def _start_round(mode: str, words) -> None:
@@ -172,14 +235,24 @@ def _start_round(mode: str, words) -> None:
     handed them out — no jumping ahead or scoring out of sequence) and "last_at"
     (a minimum real-time gap is required between claims), so a script can't blast
     through a whole round in milliseconds. This can't prove a word was actually
-    typed/spoken correctly — the client legitimately needs to know the target —
-    but it closes the practical bulk/instant-farming exploit without adding any
-    friction to a kid playing at a normal pace.
+    typed/spoken correctly on its own — /api/score also checks the submitted
+    "answer" against the target word (see normalize_answer) — but together they
+    close the practical bulk/instant-farming exploit without adding any friction
+    to a kid playing at a normal pace.
+
+    NOTE: this state lives only in the Flask session cookie (see active_rounds
+    below), not a database — it's lost if the session is cleared/expires and
+    isn't shared across tabs/devices. That's an acceptable limitation for a
+    kids' game (starting a fresh round always still works), so we track a
+    "started_at" timestamp and treat very old rounds as expired rather than
+    trying to make this durable.
     """
     valid = list(dict.fromkeys((w or "").strip().lower() for w in words if w))
     rounds = session.get("active_rounds") or {}
-    rounds[mode] = {"words": valid, "index": 0, "last_at": time.time()}
+    now = time.time()
+    rounds[mode] = {"words": valid, "index": 0, "last_at": now, "started_at": now}
     session["active_rounds"] = rounds
+    session.modified = True
 
 
 def _session_mistake(word: str, guess: str = "") -> None:
@@ -1324,6 +1397,7 @@ def api_score():
     data = request.get_json(silent=True) or {}
     mode = data.get("mode")
     word = (data.get("word") or "").strip().lower()[:48]
+    answer = data.get("answer")
 
     if mode not in MODE_CONFIG:
         return jsonify({"error": "Invalid mode"}), 400
@@ -1347,15 +1421,31 @@ def api_score():
         # handed them out (see _start_round) — submitting a word that isn't
         # "up next" is rejected, so a script can't just read the round's word
         # list off the page and claim every word out of order or all at once.
+        if not answer or not str(answer).strip():
+            return jsonify({"error": "Type or say your answer first!"}), 400
+
         rounds = session.get("active_rounds") or {}
         round_state = rounds.get(mode)
         if not round_state:
             return jsonify({"error": "That word isn't part of your current round."}), 400
 
+        if time.time() - round_state.get("started_at", 0) > _ROUND_MAX_AGE_SECONDS:
+            rounds.pop(mode, None)
+            session["active_rounds"] = rounds
+            session.modified = True
+            return jsonify({"error": "That round expired — start a new one."}), 400
+
         words_left = round_state["words"]
         idx = round_state["index"]
         if idx >= len(words_left) or word != words_left[idx]:
             return jsonify({"error": "That word isn't part of your current round."}), 400
+
+        # The real fix: actually check what the player answered, not just that
+        # the word is "up next". A wrong answer doesn't advance the round or
+        # get scored, so the word stays available to try again.
+        allow_spaces = bool(MODE_CONFIG[mode].get("phrases"))
+        if not _answer_is_correct(mode, words_left[idx], answer, allow_spaces):
+            return jsonify({"error": "Not quite — try again!"}), 400
 
         # Minimum real-time gap between claims — blocks a script from firing every
         # word in a round back-to-back; invisible to a kid actually playing.
@@ -1367,6 +1457,7 @@ def api_score():
         round_state["last_at"] = time.time()
         rounds[mode] = round_state
         session["active_rounds"] = rounds
+        session.modified = True
         points = MODE_CONFIG[mode]["points"]
 
     total = db.add_points(session["user_id"], mode, points)
@@ -1523,15 +1614,16 @@ def api_battle_answer():
         return jsonify({"error": "No active battle."}), 400
 
     data = request.get_json(silent=True) or {}
-    answer = (data.get("answer") or "").strip().lower()
-    answer = "".join(c for c in answer if c.isalpha())
+    allow_spaces = bool(MODE_CONFIG.get(battle.get("mode"), {}).get("phrases"))
+    answer = normalize_answer(data.get("answer") or "", allow_spaces)
 
     words = battle.get("words") or []
     idx = int(battle.get("index") or 0)
     if idx >= len(words):
         return jsonify({"error": "Battle already finished."}), 400
 
-    want = (words[idx].get("word") or "").lower()
+    want_raw = (words[idx].get("word") or "").strip().lower()
+    want = normalize_answer(want_raw, allow_spaces)
     turn = int(battle.get("turn") or 1)
     correct = answer == want
 
@@ -1583,7 +1675,7 @@ def api_battle_answer():
         {
             "ok": True,
             "correct": correct,
-            "want": want,
+            "want": want_raw,
             "p1_score": battle["p1_score"],
             "p2_score": battle["p2_score"],
             "turn": battle["turn"],

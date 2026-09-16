@@ -35,6 +35,49 @@ LETTERS = [row[0] for row in LETTER_BANK]
 LETTER_EXAMPLE = {row[0]: row[1] for row in LETTER_BANK}
 LETTER_EMOJI = {row[0]: row[2] for row in LETTER_BANK}
 
+# Spoken/phonetic aliases for voice answers — mirrors static/js/game.js's
+# LETTER_SAY / SIGHT_SAY tables so the server accepts the same answers the
+# client's speech recognition already treats as correct (e.g. a kid saying
+# "bee" for the letter B, or "eye" for the sight word "I").
+LETTER_SAY = {
+    "a": ["a", "ay", "eh", "apple"],
+    "b": ["b", "be", "bee", "ball"],
+    "c": ["c", "see", "sea", "cat"],
+    "d": ["d", "dee", "dog"],
+    "e": ["e", "ee", "egg"],
+    "f": ["f", "ef", "fish"],
+    "g": ["g", "gee", "jee", "gift"],
+    "h": ["h", "aitch", "hat"],
+    "i": ["i", "eye", "ice"],
+    "j": ["j", "jay", "jam"],
+    "k": ["k", "kay", "key"],
+    "l": ["l", "el", "ell", "leaf"],
+    "m": ["m", "em", "moon"],
+    "n": ["n", "en", "nest"],
+    "o": ["o", "oh", "owe", "orange"],
+    "p": ["p", "pee", "pig"],
+    "q": ["q", "cue", "queue", "queen"],
+    "r": ["r", "are", "rain"],
+    "s": ["s", "ess", "sun"],
+    "t": ["t", "tea", "tee", "tree"],
+    "u": ["u", "you", "up"],
+    "v": ["v", "vee", "van"],
+    "w": ["w", "doubleu", "doubleyou", "web"],
+    "x": ["x", "ex", "xray"],
+    "y": ["y", "why", "yam"],
+    "z": ["z", "zee", "zed", "zebra"],
+}
+SIGHT_SAY = {
+    "i": ["i", "eye"],
+    "you": ["you", "u"],
+    "the": ["the", "duh", "thee", "da"],
+    "am": ["am", "im"],
+    "is": ["is", "iz"],
+    "my": ["my", "mai"],
+    "yes": ["yes", "yeah", "yep"],
+    "no": ["no", "nope"],
+}
+
 # Sounds — CVC blending / word families (hear the sounds, say the word)
 SOUND_WORDS = [
     "cat", "hat", "bat", "sat", "mat", "rat",

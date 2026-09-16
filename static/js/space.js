@@ -153,7 +153,13 @@
         "X-Requested-With": "XMLHttpRequest",
       },
       credentials: "same-origin",
-      body: JSON.stringify({ mode: "easy", points: points, word: word, from: "space" }),
+      body: JSON.stringify({
+        mode: "easy",
+        points: points,
+        word: word,
+        answer: got,
+        from: "space",
+      }),
     })
       .then(function (res) {
         return res.json().then(function (data) {
