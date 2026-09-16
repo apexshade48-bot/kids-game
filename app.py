@@ -144,6 +144,20 @@ def _session_learn(word: str, coins: int = 0) -> None:
     db.save_play_session(uid, data)
 
 
+def _start_round(mode: str, words) -> None:
+    """Record which words the server actually handed out for this mode's round.
+
+    /api/score checks a submitted answer against this list instead of trusting
+    whatever "word" and "points" the client sends — otherwise anyone could POST
+    directly to /api/score and farm unlimited coins without answering anything.
+    Each word can only be scored once per round to stop replaying the same word.
+    """
+    valid = list(dict.fromkeys((w or "").strip().lower() for w in words if w))
+    rounds = session.get("active_rounds") or {}
+    rounds[mode] = {"words": valid, "awarded": []}
+    session["active_rounds"] = rounds
+
+
 def _session_mistake(word: str, guess: str = "") -> None:
     uid = session.get("user_id")
     if not uid:
@@ -758,6 +772,7 @@ def space_run():
     if not login_required():
         return redirect(url_for("login"))
     payload = pick_space_word(db.get_review_words(session["user_id"], "easy"))
+    _start_round("easy", [payload["word"]])
     return render_template(
         "space.html",
         name=session.get("user_name", "Friend"),
@@ -773,6 +788,7 @@ def api_space_word():
     if not login_required():
         return jsonify({"error": "Not logged in"}), 401
     payload = pick_space_word(db.get_review_words(session["user_id"], "easy"))
+    _start_round("easy", [payload["word"]])
     return jsonify({"ok": True, **payload})
 
 
@@ -1060,6 +1076,7 @@ def play(mode):
             "blurb": "Hear the phrase, then say it out loud.",
         }
     hide_word = bool(cfg.get("hide_word")) and not cfg.get("phrases")
+    _start_round(mode, [item["word"] for item in round_data])
     return render_template(
         "play.html",
         mode=mode,
@@ -1093,6 +1110,7 @@ def quiz(mode):
         liked=likes["liked"],
         disliked=likes["disliked"],
     )
+    _start_round(mode, [q["word"] for q in questions])
     return render_template(
         "quiz.html",
         mode=mode,
@@ -1123,6 +1141,7 @@ def pics_quiz(mode):
         liked=likes["liked"],
         disliked=likes["disliked"],
     )
+    _start_round(mode, [q["word"] for q in questions])
     return render_template(
         "quiz.html",
         mode=mode,
@@ -1178,30 +1197,43 @@ def api_score():
 
     data = request.get_json(silent=True) or {}
     mode = data.get("mode")
-    points = data.get("points")
+    word = (data.get("word") or "").strip().lower()[:48]
 
     if mode not in MODE_CONFIG:
         return jsonify({"error": "Invalid mode"}), 400
     if not db.is_mode_unlocked(session["user_id"], mode):
         return jsonify({"error": "Mode locked"}), 403
-    try:
-        points = int(points)
-    except (TypeError, ValueError):
-        return jsonify({"error": "Invalid points"}), 400
 
-    max_points = MODE_CONFIG[mode]["points"]
     god = db.is_user_god(session["user_id"])
     if god:
-        # Apex Shade God Mode: allow big injections from play; min 1
+        # Apex Shade God Mode: a trusted owner/admin flag, not reachable by normal
+        # play — keep letting it inject an arbitrary amount, as before.
+        try:
+            points = int(data.get("points"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid points"}), 400
         if points < 1:
             return jsonify({"error": "Invalid points amount"}), 400
         points = min(points, 99999)
-    elif points < 1 or points > max_points:
-        return jsonify({"error": "Invalid points amount"}), 400
+    else:
+        # Server-authoritative scoring: never trust a client-sent points value.
+        # The word must be one the server actually handed out for this mode's
+        # current round (see _start_round), and each round word can only be
+        # scored once — that's what stops a direct POST to this endpoint from
+        # farming coins without ever answering correctly.
+        rounds = session.get("active_rounds") or {}
+        round_state = rounds.get(mode)
+        if not round_state or word not in round_state["words"]:
+            return jsonify({"error": "That word isn't part of your current round."}), 400
+        if word in round_state["awarded"]:
+            return jsonify({"error": "Already scored."}), 400
+        round_state["awarded"].append(word)
+        rounds[mode] = round_state
+        session["active_rounds"] = rounds
+        points = MODE_CONFIG[mode]["points"]
 
     total = db.add_points(session["user_id"], mode, points)
     coins = db.add_coins(session["user_id"], points)
-    word = (data.get("word") or "").strip().lower()[:48]
     extra = 0
     if word:
         db.record_review_word(session["user_id"], mode, word)
