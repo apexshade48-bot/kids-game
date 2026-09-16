@@ -234,6 +234,14 @@
             {% if has_paid %}
             <button type="button" class="btn btn-small btn-danger btn-lock-all" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Lock N/H/Top</button>
             {% endif %}
+            {% if is_owner %}
+              {% if user.is_subscribed %}
+              <span class="admin-badge">⭐ Subscribed</span>
+              <button type="button" class="btn btn-small btn-danger" data-revoke-sub="{{ user.id }}">Remove sub</button>
+              {% else %}
+              <button type="button" class="btn btn-small btn-grant-sub" data-user-id="{{ user.id }}">🎁 Grant free month</button>
+              {% endif %}
+            {% endif %}
             <button type="button" class="btn btn-small btn-reset-password" data-user-id="{{ user.id }}" data-name="{{ user.name }}">Reset password</button>
             <button type="button" class="btn btn-small btn-reset-scores" data-user-id="{{ user.id }}">Reset stars</button>
             {% if not user.is_admin and user.id != session.user_id %}

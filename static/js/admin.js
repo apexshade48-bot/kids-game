@@ -66,6 +66,38 @@
     });
   });
 
+  document.querySelectorAll(".btn-grant-sub").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const userId = btn.dataset.userId;
+      if (!confirm("Give this player a free month, no payment involved?")) return;
+      try {
+        await post("/admin/api/user/" + userId + "/subscription/grant", {});
+        showStatus("Free month granted!", true);
+        setTimeout(function () {
+          window.location.reload();
+        }, 600);
+      } catch (e) {
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-revoke-sub]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const userId = btn.dataset.revokeSub;
+      if (!confirm("Remove this player's subscription?")) return;
+      try {
+        await post("/admin/api/user/" + userId + "/subscription/revoke", {});
+        showStatus("Subscription removed.", true);
+        setTimeout(function () {
+          window.location.reload();
+        }, 600);
+      } catch (e) {
+        showStatus(friendlyError(e), false);
+      }
+    });
+  });
+
   document.querySelectorAll(".btn-save-coins").forEach(function (btn) {
     btn.addEventListener("click", async function () {
       const userId = btn.dataset.userId;

@@ -1475,10 +1475,20 @@ def claim_streak_bonus(user_id: int) -> dict:
 def get_all_users_progress() -> list[dict]:
     """Progress snapshot for admin panel."""
     users = get_all_users()
+    conn = get_connection()
+    try:
+        subscribed_ids = {
+            int(r["user_id"])
+            for r in conn.execute(
+                "SELECT user_id FROM subscriptions WHERE is_active = 1 AND end_date >= date('now')"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
     out = []
     for u in users:
         prog = get_user_progress(u["id"])
-        out.append({**u, "progress": prog})
+        out.append({**u, "progress": prog, "is_subscribed": u["id"] in subscribed_ids})
     return out
 
 
@@ -2767,6 +2777,7 @@ def _ensure_fluency_table(conn) -> None:
 
 SUBSCRIPTION_PRICE_PKR = 1000
 SUBSCRIPTION_MONTH_DAYS = 30
+SUBSCRIPTION_TRIAL_DAYS = 7
 SUBSCRIPTION_METHODS = ("jazzcash", "easypaisa", "card")
 
 
@@ -2785,6 +2796,12 @@ def _ensure_subscription_table(conn) -> None:
         )
         """
     )
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
+    if "trial_used" not in cols:
+        # Tracked separately from is_active/end_date, which naturally go stale
+        # once a trial expires — this stays permanently true so the free week
+        # can't just be re-claimed by starting it again.
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS subscription_requests (
@@ -2895,6 +2912,75 @@ def activate_subscription(
             )
         conn.commit()
         return True, "Subscription activated."
+    finally:
+        conn.close()
+
+
+def has_used_trial(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT trial_used FROM subscriptions WHERE user_id = ?", (int(user_id),)
+        ).fetchone()
+        return bool(row and row["trial_used"])
+    finally:
+        conn.close()
+
+
+def start_free_trial(user_id: int) -> tuple[bool, str]:
+    """Self-serve, one-time 7-day free trial — no owner approval needed, since
+    nothing is being paid. Once trial_used is set it stays set forever, even
+    after the trial expires, so it can't just be re-claimed by starting it
+    again (unlike a paid subscription, which is fine to stack/renew)."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE id = ?", (int(user_id),)).fetchone()
+        if not row:
+            return False, "User not found."
+        existing = conn.execute(
+            "SELECT trial_used, is_active, end_date FROM subscriptions WHERE user_id = ?",
+            (int(user_id),),
+        ).fetchone()
+        if existing and existing["trial_used"]:
+            return False, "You've already used your free trial."
+        if existing and existing["is_active"] and existing["end_date"] and existing["end_date"] >= _today():
+            return False, "You're already subscribed."
+        conn.execute(
+            """
+            INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, trial_used, updated_at)
+            VALUES (?, 1, date('now'), date('now', ?), 'trial', 'free trial', 1, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+                is_active = 1,
+                start_date = date('now'),
+                end_date = date('now', ?),
+                method = 'trial',
+                reference = 'free trial',
+                trial_used = 1,
+                updated_at = datetime('now')
+            """,
+            (int(user_id), f"+{SUBSCRIPTION_TRIAL_DAYS} days", f"+{SUBSCRIPTION_TRIAL_DAYS} days"),
+        )
+        conn.commit()
+        return True, f"Free {SUBSCRIPTION_TRIAL_DAYS}-day trial started!"
+    finally:
+        conn.close()
+
+
+def revoke_subscription(user_id: int) -> tuple[bool, str]:
+    """Owner action: undo an accidental free grant, or cancel a subscription."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT user_id FROM subscriptions WHERE user_id = ?", (int(user_id),)
+        ).fetchone()
+        if not row:
+            return False, "This account was never subscribed."
+        conn.execute(
+            "UPDATE subscriptions SET is_active = 0, updated_at = datetime('now') WHERE user_id = ?",
+            (int(user_id),),
+        )
+        conn.commit()
+        return True, "Subscription removed."
     finally:
         conn.close()
 

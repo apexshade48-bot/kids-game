@@ -113,6 +113,16 @@ def login_required():
     return "user_id" in session
 
 
+def _post_auth_redirect(user_id: int):
+    """Where to send a player right after a successful login/signup/aura pick.
+    Already-subscribed accounts skip straight to Home — no point pitching a
+    paying customer. Everyone else sees the subscribe screen first, which has
+    its own big "Play for free" button, so this never actually blocks play."""
+    if db.is_subscribed(user_id):
+        return redirect(url_for("home"))
+    return redirect(url_for("subscribe", welcome=1))
+
+
 def _play_session() -> dict:
     uid = session.get("user_id")
     if not uid:
@@ -435,7 +445,7 @@ def signup():
         session["user_name"] = name.strip()
         session["is_admin"] = db.is_user_admin(result)
         session["aura"] = db.normalize_aura(aura)
-        return redirect(url_for("home"))
+        return _post_auth_redirect(result)
 
     return render_template(
         "login.html", tab="signup", aura_choices=db.AURA_CHOICES
@@ -501,7 +511,7 @@ def login():
         session["aura"] = result.get("aura")
         if not result.get("aura"):
             return redirect(url_for("choose_aura"))
-        return redirect(url_for("home"))
+        return _post_auth_redirect(result["id"])
 
     return render_template("login.html", tab="login")
 
@@ -526,6 +536,10 @@ def choose_aura():
             )
         session["aura"] = result
         flash("Aura saved! Your look is ready.", "success")
+        if not current:
+            # This was the forced first-pick right after login/signup — continue
+            # the same post-auth flow as everyone else, not a settings change.
+            return _post_auth_redirect(session["user_id"])
         return redirect(url_for("home"))
 
     # Already has aura — allow change anytime
@@ -992,7 +1006,20 @@ def subscribe():
         jazzcash_number=os.environ.get("JAZZCASH_NUMBER", ""),
         easypaisa_number=os.environ.get("EASYPAISA_NUMBER", ""),
         card_enabled=bool(os.environ.get("STRIPE_PUBLISHABLE_KEY")),
+        owner_email=os.environ.get("OWNER_CONTACT_EMAIL", ""),
+        welcome=request.args.get("welcome") == "1",
+        trial_available=not db.has_used_trial(uid) and not db.is_subscribed(uid),
+        trial_days=db.SUBSCRIPTION_TRIAL_DAYS,
     )
+
+
+@app.route("/subscribe/trial", methods=["POST"])
+def subscribe_trial():
+    if not login_required():
+        return redirect(url_for("login"))
+    ok, msg = db.start_free_trial(session["user_id"])
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("subscribe"))
 
 
 @app.route("/api/shop/list", methods=["POST"])
@@ -1675,6 +1702,27 @@ def admin_api_resolve_payment(request_id):
     ok, msg = db.resolve_subscription_request(
         request_id, approve, session.get("user_name", "Admin")
     )
+    if not ok:
+        return jsonify({"error": msg}), 400
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/admin/api/user/<int:user_id>/subscription/grant", methods=["POST"])
+@owner_required
+def admin_api_grant_subscription(user_id):
+    """Owner-only: give a player a free month, no payment involved. Restricted
+    to the owner (not secondary admins) since it's giving away the paid
+    product — same trust tier as adding/removing admins."""
+    ok, msg = db.activate_subscription(user_id, months=1, method="free", reference="owner grant")
+    if not ok:
+        return jsonify({"error": msg}), 400
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/admin/api/user/<int:user_id>/subscription/revoke", methods=["POST"])
+@owner_required
+def admin_api_revoke_subscription(user_id):
+    ok, msg = db.revoke_subscription(user_id)
     if not ok:
         return jsonify({"error": msg}), 400
     return jsonify({"ok": True, "message": msg})

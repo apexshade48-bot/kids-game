@@ -5,9 +5,13 @@
 {% block content %}
 <section class="hero">
   <p class="hero-kicker">For grown-ups</p>
-  <h1 class="big-title">Unlock everything</h1>
+  <h1 class="big-title">{% if welcome %}Welcome!{% else %}Unlock everything{% endif %}</h1>
   <p class="subtitle">All levels, no coin-grinding, plus weekly progress emails — {{ price }} PKR / month.</p>
 </section>
+
+{% if welcome and not is_subscribed %}
+<a href="{{ url_for('home') }}" class="btn btn-primary btn-block">▶ No thanks, play free now</a>
+{% endif %}
 
 {% if is_subscribed %}
 <section class="card section-card" style="border:2px solid #22c55e">
@@ -35,6 +39,17 @@
     <li>Kids can still earn coins and unlock levels for free the normal way — this just skips the wait</li>
   </ul>
 </section>
+
+{% if trial_available %}
+<section class="card section-card" style="border:2px solid #7c3aed">
+  <h2>🎁 Try it free for {{ trial_days }} days</h2>
+  <p class="section-desc">No payment, no transaction ID — just try everything unlocked for a week. One trial per account.</p>
+  <form method="post" action="{{ url_for('subscribe_trial') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn btn-primary btn-block">Start my {{ trial_days }}-day free trial</button>
+  </form>
+</section>
+{% endif %}
 
 <section class="card section-card">
   <h2>Pay by JazzCash</h2>
@@ -91,7 +106,41 @@
 
 {% endif %}
 
+<section class="card section-card">
+  <h2>💬 Talk to the owner</h2>
+  <p class="section-desc">
+    Questions, a different payment method, or want a free trial? Email us directly.
+  </p>
+  {% if owner_email %}
+  <p class="section-desc" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <strong id="owner-email-text">{{ owner_email }}</strong>
+    <button type="button" class="btn btn-small btn-ghost" id="copy-owner-email" data-email="{{ owner_email }}">📋 Copy</button>
+    <a href="mailto:{{ owner_email }}" class="btn btn-small btn-primary">✉️ Email now</a>
+  </p>
+  {% else %}
+  <p class="section-desc">Contact email not set up yet — ask the app owner to set OWNER_CONTACT_EMAIL.</p>
+  {% endif %}
+</section>
+
 <p class="section-desc">
-  <a href="{{ url_for('home') }}" class="btn btn-ghost">Back to Home</a>
+  <a href="{{ url_for('home') }}" class="btn btn-ghost">▶ Play the game now</a>
 </p>
+
+<script>
+  (function () {
+    var btn = document.getElementById("copy-owner-email");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var email = btn.getAttribute("data-email");
+      var done = function () {
+        var old = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function () { btn.textContent = old; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(done).catch(function () {});
+      }
+    });
+  })();
+</script>
 {% endblock %}
