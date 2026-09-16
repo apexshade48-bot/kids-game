@@ -14,9 +14,9 @@ Code: [github.com/apexshade48-bot/kids-game](https://github.com/apexshade48-bot/
 - **Quiz** — missing letter · **Pics** — match the emoji to the word  
 - **Easy** — free, 8 words, 3 letters (**+20** coins each)  
 - **Normal** — unlock for **300 coins**, 8 words, 4 letters (**+35** each)  
-- **Hard** — unlock for **800 coins**, 10 words, 5–6 letters (**+50** each)  
-- **Top** — unlock for **2,000 coins**, 10 words, 7–8 letters (**+80** each)  
-- **Family** — unlock for **3,000 coins**, spoken English phrases (**+100** each). Hear & say. Admin can unlock free for mom/dad.  
+- **Hard** — unlock for **5,000 coins**, 10 words, 5–6 letters (**+100** each)  
+- **Top** — unlock for **10,000 coins**, 10 words, 7–8 letters (**+500** each)  
+- **Family** — unlock for **20,000 coins**, spoken English phrases (**+1,000** each). Hear & say. Admin can unlock free for mom/dad.  
 - **Streaks** — coins on day 1 / 3 / 7 (and every 7 days after)  
 - **Admin** — coins, unlock/lock modes, reset password, reset stars, roles  
 - **Leaderboard** per mode  
