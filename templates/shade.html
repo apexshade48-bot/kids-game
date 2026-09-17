@@ -132,6 +132,11 @@
         {% else %}
         <button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_admin" data-name="{{ u.name }}">Gift Admin gear</button>
         {% endif %}
+        {% if u.is_subscribed %}
+        <button type="button" class="btn btn-small shade-btn shade-nuke" data-action="revoke_subscription" data-name="{{ u.name }}" data-confirm="Cancel {{ u.name }}'s subscription?">Revoke subscription</button>
+        {% else %}
+        <button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_subscription" data-name="{{ u.name }}" data-confirm="Gift {{ u.name }} a free 1-month subscription?">Gift 1-month sub</button>
+        {% endif %}
       </div>
       {% endif %}
     </li>

@@ -16,6 +16,7 @@
     "bubble",
     "lava",
     "galaxy",
+    "organic",
   ];
 
   function apply(theme, opts) {
@@ -51,6 +52,7 @@
       bubble: "#67e8f9",
       lava: "#fb7185",
       galaxy: "#1e1b4b",
+      organic: "#f5ead8",
     };
     if (meta) meta.setAttribute("content", colors[theme] || colors.violet);
 

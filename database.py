@@ -1654,6 +1654,7 @@ def get_all_users() -> list[dict]:
                 "has_admin_gear": bool(admin_owned),
                 "is_developer": bool(row["is_developer"]),
                 "has_dev_gear": bool(dev_owned),
+                "is_subscribed": is_subscribed(row["id"]),
                 "created_at": row["created_at"],
                 "scores": {
                     mode: int(score_map.get(int(row["id"]), {}).get(mode, 0) or 0)
@@ -2820,6 +2821,15 @@ def _ensure_subscription_table(conn) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_sub_requests_status ON subscription_requests(status)"
     )
+    # Stripe can deliver the same webhook event more than once (retries on a
+    # slow/failed response) — this stops a duplicate delivery from granting a
+    # second free month for one card payment.
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_requests_card_ref
+        ON subscription_requests(reference) WHERE method = 'card'
+        """
+    )
 
 
 def get_subscription(user_id: int) -> dict:
@@ -3078,6 +3088,35 @@ def resolve_subscription_request(
     if approve:
         return activate_subscription(row["user_id"], months=1)
     return True, "Payment request rejected."
+
+
+def record_card_subscription(user_id: int, stripe_session_id: str) -> bool:
+    """Stripe webhook confirmed a card payment — activate the subscription.
+
+    Logs the payment as an already-approved subscription_requests row (same
+    audit trail as the manual JazzCash/EasyPaisa flow) and relies on the
+    partial unique index on (reference) for method='card' to make this safe
+    to call more than once for the same Stripe session — Stripe retries
+    webhook deliveries, so this must not grant a second month per payment.
+    Returns False if this session was already recorded (duplicate delivery).
+    """
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO subscription_requests
+                (user_id, method, reference, note, status, resolved_at, resolved_by)
+            VALUES (?, 'card', ?, 'Stripe Checkout', 'approved', datetime('now'), 'stripe-webhook')
+            """,
+            (int(user_id), str(stripe_session_id)),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+    activate_subscription(user_id, months=1, method="card", reference=stripe_session_id)
+    return True
 
 
 def count_family_mastered(user_id: int) -> int:

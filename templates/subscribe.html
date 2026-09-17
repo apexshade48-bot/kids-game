@@ -16,6 +16,16 @@
 <a href="{{ url_for('home') }}" class="btn btn-primary btn-block">▶ No thanks, play free now</a>
 {% endif %}
 
+{% if just_paid and not is_subscribed %}
+<section class="card section-card" style="border:2px solid #7c3aed">
+  <h2>💳 Payment received!</h2>
+  <p class="section-desc">
+    We're activating your subscription now — this usually takes just a few seconds.
+    Refresh this page shortly if it doesn't update automatically.
+  </p>
+</section>
+{% endif %}
+
 {% if is_subscribed %}
 <section class="card section-card" style="border:2px solid #22c55e">
   <h2>⭐ You're subscribed!</h2>
@@ -101,7 +111,11 @@
 <section class="card section-card">
   <h2>Pay by Card</h2>
   {% if card_enabled %}
-  <p class="section-desc">Card payments are set up but not wired to this page yet.</p>
+  <p class="section-desc">Pay <strong>Rs. {{ price }}</strong> securely by card, from anywhere — activates automatically.</p>
+  <form method="post" action="{{ url_for('subscribe_card') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn btn-primary btn-block">💳 Pay by card</button>
+  </form>
   {% else %}
   <p class="section-desc">Card payments are coming soon. Please use JazzCash or EasyPaisa for now.</p>
   {% endif %}

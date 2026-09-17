@@ -88,6 +88,21 @@
         name +
         '">Gift Developer gear</button>';
     }
+    if (u.is_subscribed) {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-nuke" data-action="revoke_subscription" data-name="' +
+        name +
+        '" data-confirm="Cancel ' +
+        name +
+        '\'s subscription?">Revoke subscription</button>';
+    } else {
+      html +=
+        '<button type="button" class="btn btn-small shade-btn shade-power" data-action="gift_subscription" data-name="' +
+        name +
+        '" data-confirm="Gift ' +
+        name +
+        ' a free 1-month subscription?">Gift 1-month sub</button>';
+    }
     html += "</div>";
     return html;
   }

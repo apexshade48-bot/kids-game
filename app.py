@@ -27,6 +27,11 @@ from flask import (
 )
 from flask_wtf import CSRFProtect
 
+try:
+    import stripe
+except ImportError:
+    stripe = None
+
 import database as db
 import mailer
 import ollama_teacher
@@ -53,6 +58,16 @@ APP_VERSION = "9.1"
 PORT = int(os.environ.get("PORT", DEFAULT_PORT))
 DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "0").lower() in ("1", "true", "yes")
+
+# Stripe Checkout — lets anyone pay by card, not just JazzCash/EasyPaisa (see
+# /subscribe/card below). Feature-detected: the button only shows once both
+# keys are set, so the app runs fine without a Stripe account configured.
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_ENABLED = bool(stripe and STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
+if STRIPE_ENABLED:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 _secret = os.environ.get("SECRET_KEY")
 if not _secret:
@@ -116,12 +131,21 @@ def login_required():
     return "user_id" in session
 
 
+def _effective_subscribed(user_id: int) -> bool:
+    """Apex (owner) is always treated as subscribed — same trust tier that
+    already lets them bypass the Hacker Panel gift-only check. No DB row
+    needed, so it can't accidentally expire."""
+    if db.is_owner_admin_name(session.get("user_name", "")):
+        return True
+    return db.is_subscribed(user_id)
+
+
 def _post_auth_redirect(user_id: int):
     """Where to send a player right after a successful login/signup/aura pick.
     Already-subscribed accounts skip straight to Home — no point pitching a
     paying customer. Everyone else sees the subscribe screen first, which has
     its own big "Play for free" button, so this never actually blocks play."""
-    if db.is_subscribed(user_id):
+    if _effective_subscribed(user_id):
         return redirect(url_for("home"))
     return redirect(url_for("subscribe", welcome=1))
 
@@ -839,7 +863,7 @@ def home():
         badges=db.get_user_badges(session["user_id"]),
         talk_preview=daily_talk_items()[:3],
         teacher_ready=ollama_teacher.ping(),
-        is_subscribed=db.is_subscribed(session["user_id"]),
+        is_subscribed=_effective_subscribed(session["user_id"]),
         subscription_price=db.SUBSCRIPTION_PRICE_PKR,
         # Soft, non-blocking nudge: only show the upgrade card once the kid has
         # played enough to have proven the game is fun (a handful of correct
@@ -942,7 +966,7 @@ def parent_sheet():
         parent_email=db.get_parent_email(uid),
         likes=db.get_word_likes(uid),
         subscription=db.get_subscription(uid),
-        is_subscribed=db.is_subscribed(uid),
+        is_subscribed=_effective_subscribed(uid),
     )
 
 
@@ -1057,6 +1081,9 @@ def subscribe():
         return redirect(url_for("login"))
     uid = session["user_id"]
     if request.method == "POST":
+        if _effective_subscribed(uid):
+            flash("You're already subscribed — no need to pay again.", "error")
+            return redirect(url_for("subscribe"))
         method = request.form.get("method", "")
         reference = request.form.get("reference", "")
         note = request.form.get("note", "")
@@ -1074,16 +1101,75 @@ def subscribe():
         name=session.get("user_name", "Friend"),
         price=db.SUBSCRIPTION_PRICE_PKR,
         subscription=db.get_subscription(uid),
-        is_subscribed=db.is_subscribed(uid),
+        is_subscribed=_effective_subscribed(uid),
         pending=db.get_pending_subscription_request(uid),
         jazzcash_number=os.environ.get("JAZZCASH_NUMBER", ""),
         easypaisa_number=os.environ.get("EASYPAISA_NUMBER", ""),
-        card_enabled=bool(os.environ.get("STRIPE_PUBLISHABLE_KEY")),
+        card_enabled=STRIPE_ENABLED,
         owner_email=os.environ.get("OWNER_CONTACT_EMAIL", ""),
         welcome=request.args.get("welcome") == "1",
-        trial_available=not db.has_used_trial(uid) and not db.is_subscribed(uid),
+        just_paid=request.args.get("paid") == "1",
+        trial_available=not db.has_used_trial(uid) and not _effective_subscribed(uid),
         trial_days=db.SUBSCRIPTION_TRIAL_DAYS,
     )
+
+
+@app.route("/subscribe/card", methods=["POST"])
+def subscribe_card():
+    """Start a Stripe Checkout session so anyone can pay by card, worldwide.
+
+    Activation itself happens in /webhooks/stripe, not here — Stripe is the
+    source of truth for whether the card payment actually succeeded, and the
+    webhook fires even if the parent closes the tab before the redirect back.
+    """
+    if not login_required():
+        return redirect(url_for("login"))
+    if not STRIPE_ENABLED:
+        flash("Card payments aren't set up yet — please use JazzCash or EasyPaisa.", "error")
+        return redirect(url_for("subscribe"))
+    uid = session["user_id"]
+    if _effective_subscribed(uid):
+        flash("You're already subscribed — no need to pay again.", "error")
+        return redirect(url_for("subscribe"))
+    try:
+        checkout = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+            client_reference_id=str(uid),
+            success_url=url_for("subscribe", paid=1, _external=True),
+            cancel_url=url_for("subscribe", _external=True),
+        )
+    except stripe.error.StripeError as e:
+        flash(f"Could not start card payment: {e.user_message or 'please try again.'}", "error")
+        return redirect(url_for("subscribe"))
+    return redirect(checkout.url, code=303)
+
+
+@app.route("/webhooks/stripe", methods=["POST"])
+@csrf.exempt
+def webhook_stripe():
+    """Stripe calls this directly (no browser session/CSRF token available),
+    so it's exempted from CSRF and instead authenticated by verifying Stripe's
+    signature on the payload — anyone without STRIPE_WEBHOOK_SECRET can't forge
+    a fake "payment succeeded" event."""
+    if not STRIPE_ENABLED or not STRIPE_WEBHOOK_SECRET:
+        return jsonify({"error": "Not configured"}), 400
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        return jsonify({"error": "Invalid payload or signature"}), 400
+
+    if event["type"] == "checkout.session.completed":
+        obj = event["data"]["object"]
+        if obj.get("payment_status") == "paid":
+            uid = obj.get("client_reference_id")
+            session_id = obj.get("id")
+            if uid and session_id:
+                db.record_card_subscription(int(uid), session_id)
+    return jsonify({"ok": True})
 
 
 @app.route("/subscribe/trial", methods=["POST"])
@@ -2076,6 +2162,20 @@ def shade_api(action):
         if not target:
             return jsonify({"error": "Player not found."}), 404
         ok, msg = db.gift_admin_gear(target["id"])
+    elif action == "gift_subscription":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.activate_subscription(
+            target["id"], months=1, method="free", reference="owner gift"
+        )
+    elif action == "revoke_subscription":
+        name = (data.get("name") or "").strip()
+        target = db.shade_find_user_by_name(name)
+        if not target:
+            return jsonify({"error": "Player not found."}), 404
+        ok, msg = db.revoke_subscription(target["id"])
     elif action == "dump":
         return jsonify({"ok": True, "dump": db.shade_system_dump()})
     elif action == "spawn_fakes":
