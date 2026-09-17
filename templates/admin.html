@@ -122,10 +122,15 @@
       </thead>
       <tbody>
         {% for req in pending_payments %}
-        <tr id="pay-row-{{ req.id }}">
+        <tr id="pay-row-{{ req.id }}"{% if req.reused_reference %} class="admin-table-row-warn"{% endif %}>
           <td>{{ req.name }}</td>
           <td>{{ req.method }}</td>
-          <td>{{ req.reference or '—' }}</td>
+          <td>
+            {{ req.reference or '—' }}
+            {% if req.reused_reference %}
+            <span class="admin-table-warn-badge" title="This transaction ID was already reported by a different account. A real transaction ID only clears one payment — double-check before approving.">⚠️ reused ID</span>
+            {% endif %}
+          </td>
           <td>{{ req.note or '—' }}</td>
           <td>{{ req.created_at }}</td>
           <td>

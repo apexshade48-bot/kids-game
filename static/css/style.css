@@ -1285,6 +1285,23 @@ a {
   background: var(--primary-soft);
 }
 
+.admin-table-row-warn {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.admin-table-warn-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .admin-badge {
   display: inline-block;
   margin-left: 4px;

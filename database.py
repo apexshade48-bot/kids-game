@@ -3044,7 +3044,14 @@ def get_pending_subscription_request(user_id: int) -> dict | None:
 
 
 def list_pending_subscription_requests() -> list[dict]:
-    """For the admin panel: every parent-reported payment awaiting approval."""
+    """For the admin panel: every parent-reported payment awaiting approval.
+
+    Flags `reused_reference` when another account (pending or already
+    approved) reported the exact same jazzcash/easypaisa transaction ID —
+    a real transaction ID only clears one payment on the owner's own
+    JazzCash/EasyPaisa account, so a second report of it is either a typo
+    or someone copying a stranger's ID hoping the owner won't cross-check.
+    """
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -3056,7 +3063,22 @@ def list_pending_subscription_requests() -> list[dict]:
             ORDER BY sr.created_at ASC
             """
         ).fetchall()
-        return [dict(r) for r in rows]
+        result = [dict(r) for r in rows]
+        for req in result:
+            ref = (req.get("reference") or "").strip()
+            if req["method"] not in ("jazzcash", "easypaisa") or not ref:
+                req["reused_reference"] = False
+                continue
+            dupe = conn.execute(
+                """
+                SELECT 1 FROM subscription_requests
+                WHERE reference = ? AND method = ? AND user_id != ? AND id != ?
+                LIMIT 1
+                """,
+                (ref, req["method"], req["user_id"], req["id"]),
+            ).fetchone()
+            req["reused_reference"] = dupe is not None
+        return result
     finally:
         conn.close()
 
