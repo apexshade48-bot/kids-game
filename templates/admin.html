@@ -147,6 +147,44 @@
   {% endif %}
 </section>
 
+<section class="admin-team card" id="fraud-events">
+  <h2>🚨 Card disputes, refunds &amp; failed payments ({{ fraud_events | length }})</h2>
+  <p class="admin-team-desc">
+    Recent Stripe chargebacks, refunds, failed-payment retries, and revokes, newest first —
+    a quick glance for patterns (repeat names, similar parent emails) before digging into the
+    Stripe Dashboard. Access for a disputed/refunded account is already revoked automatically;
+    this list is for spotting patterns, not for taking action.
+  </p>
+  {% if fraud_events %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Parent email</th>
+          <th>Event</th>
+          <th>Detail</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in fraud_events %}
+        <tr{% if ev.event_type in ('dispute_created', 'refunded') %} class="admin-table-row-warn"{% endif %}>
+          <td>{{ ev.name or '(deleted account)' }}</td>
+          <td>{{ ev.parent_email or '—' }}</td>
+          <td>{{ ev.event_type }}</td>
+          <td>{{ ev.detail or '—' }}</td>
+          <td>{{ ev.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="admin-team-empty">No disputes, refunds, or failed payments yet.</p>
+  {% endif %}
+</section>
+
 <section class="admin-users card">
   <h2>All players</h2>
   <div class="admin-table-wrap">

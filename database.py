@@ -412,6 +412,27 @@ def normalize_parent_email(raw: str | None) -> str | None:
     return e
 
 
+# Not exhaustive — just raises the bar against the most common disposable
+# -email services used to farm free trials with throwaway accounts. A
+# determined person can still get past this; combined with Stripe's own
+# "one trial per card" check (see STRIPE_SETUP.md) for the card-based path.
+DISPOSABLE_EMAIL_DOMAINS = frozenset({
+    "mailinator.com", "guerrillamail.com", "guerrillamail.info", "guerrillamail.biz",
+    "guerrillamail.de", "sharklasers.com", "10minutemail.com", "10minutemail.net",
+    "temp-mail.org", "tempmail.com", "tempmail.net", "throwawaymail.com",
+    "yopmail.com", "yopmail.net", "yopmail.fr", "trashmail.com", "getnada.com",
+    "maildrop.cc", "mintemail.com", "mohmal.com", "fakeinbox.com", "dispostable.com",
+    "discard.email", "spamgourmet.com", "mailnesia.com", "moakt.com", "emailondeck.com",
+    "tempinbox.com", "33mail.com", "mailcatch.com", "inboxbear.com", "tempail.com",
+    "anonaddy.com", "burnermail.io", "mytemp.email", "temp-mail.io", "1secmail.com",
+})
+
+
+def is_disposable_email_domain(email: str) -> bool:
+    domain = (email or "").strip().lower().rpartition("@")[2]
+    return domain in DISPOSABLE_EMAIL_DOMAINS
+
+
 def get_parent_email(user_id: int) -> str:
     conn = get_connection()
     try:
@@ -497,6 +518,8 @@ def create_user(
         return False, "Please enter a real parent email, like mom@email.com."
     if not email:
         return False, "Ask a grown-up to type their email."
+    if is_disposable_email_domain(email):
+        return False, "Please use your regular email, not a temporary/disposable one."
 
     conn = get_connection()
     try:
@@ -2779,6 +2802,14 @@ SUBSCRIPTION_PRICE_PKR = 1000
 SUBSCRIPTION_MONTH_DAYS = 30
 SUBSCRIPTION_TRIAL_DAYS = 7
 SUBSCRIPTION_METHODS = ("jazzcash", "easypaisa", "card")
+# invoice.payment_failed keeps access alive this long as a local safety net while
+# Stripe's own Smart Retries run — the real cutoff normally comes from Stripe
+# itself moving the subscription to 'canceled'/'unpaid' once retries are
+# exhausted (customer.subscription.updated), which revokes immediately. See
+# STRIPE_SETUP.md for where the retry schedule itself is configured.
+SUBSCRIPTION_GRACE_DAYS = 5
+# Stripe subscription statuses that still count as having access.
+_STRIPE_STATUS_TO_LOCAL = {"trialing": "trial", "active": "active", "past_due": "past_due"}
 
 
 def _ensure_subscription_table(conn) -> None:
@@ -2802,6 +2833,72 @@ def _ensure_subscription_table(conn) -> None:
         # once a trial expires — this stays permanently true so the free week
         # can't just be re-claimed by starting it again.
         conn.execute("ALTER TABLE subscriptions ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0")
+    # status is the source of truth for access, on top of is_active/end_date:
+    # 'revoked' blocks access immediately regardless of end_date, so a
+    # chargeback cuts a still-time-remaining subscription off right away
+    # instead of quietly running out the clock.
+    if "status" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN status TEXT NOT NULL DEFAULT 'none'")
+        conn.execute("UPDATE subscriptions SET status = 'active' WHERE is_active = 1")
+    if "stripe_customer_id" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN stripe_customer_id TEXT")
+    if "stripe_subscription_id" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN stripe_subscription_id TEXT")
+    if "grace_until" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN grace_until TEXT")
+    if "revoked_at" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN revoked_at TEXT")
+    if "revoke_reason" not in cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN revoke_reason TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sub_stripe_customer ON subscriptions(stripe_customer_id)"
+    )
+    # Audit trail for every subscription status change — who/what caused it,
+    # when, and the Stripe event id it came from (for dispute evidence later).
+    # Never stores card numbers or secret keys, only event metadata.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS subscription_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            event_type TEXT NOT NULL,
+            stripe_event_id TEXT,
+            detail TEXT,
+            actor TEXT NOT NULL DEFAULT 'stripe-webhook',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sub_events_user ON subscription_events(user_id, created_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sub_events_type ON subscription_events(event_type, created_at)"
+    )
+    # A stripe_event_id must only ever be acted on once — Stripe retries
+    # webhook deliveries, and this is the idempotency guard against double
+    # -processing (e.g. revoking twice, or double-extending an end_date).
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_events_stripe_id
+        ON subscription_events(stripe_event_id) WHERE stripe_event_id IS NOT NULL
+        """
+    )
+    # Maps a Stripe charge id to the account it belongs to, built up as
+    # invoices are paid. charge.dispute.created events only carry a charge
+    # id (no customer field), so this is how a dispute gets traced back to
+    # a user without an extra live Stripe API call from inside the webhook.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS stripe_charges (
+            charge_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS subscription_requests (
@@ -2836,36 +2933,59 @@ def get_subscription(user_id: int) -> dict:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT is_active, start_date, end_date, method FROM subscriptions WHERE user_id = ?",
+            """
+            SELECT is_active, start_date, end_date, method, status, grace_until, revoke_reason
+            FROM subscriptions WHERE user_id = ?
+            """,
             (int(user_id),),
         ).fetchone()
         if not row:
-            return {"is_active": False, "start_date": None, "end_date": None, "method": None}
-        active = bool(row["is_active"]) and bool(row["end_date"])
+            return {
+                "is_active": False, "start_date": None, "end_date": None, "method": None,
+                "status": "none", "grace_until": None, "revoke_reason": None,
+            }
+        active = bool(row["is_active"]) and bool(row["end_date"]) and row["status"] != "revoked"
         return {
             "is_active": active,
             "start_date": row["start_date"],
             "end_date": row["end_date"],
             "method": row["method"],
+            "status": row["status"],
+            "grace_until": row["grace_until"],
+            "revoke_reason": row["revoke_reason"],
         }
     finally:
         conn.close()
 
 
-def is_subscribed(user_id: int) -> bool:
-    """True if the account has a paid subscription that hasn't expired yet."""
+def is_premium(user_id: int) -> bool:
+    """True if the account currently has access — checked fresh against the
+    subscription's live status every call, never a cached boolean. A
+    'revoked' status (chargeback/dispute/refund) blocks access immediately
+    even if end_date hasn't passed yet; a 'past_due' status still counts
+    while inside its grace_until window (Stripe is mid-retry)."""
     conn = get_connection()
     try:
         row = conn.execute(
             """
             SELECT 1 FROM subscriptions
-            WHERE user_id = ? AND is_active = 1 AND end_date >= date('now')
+            WHERE user_id = ?
+              AND is_active = 1
+              AND status IN ('trial', 'active', 'past_due')
+              AND (
+                    (status != 'past_due' AND end_date >= date('now'))
+                 OR (status = 'past_due' AND grace_until IS NOT NULL AND grace_until >= date('now'))
+              )
             """,
             (int(user_id),),
         ).fetchone()
         return row is not None
     finally:
         conn.close()
+
+
+# Back-compat name — same live check, not a cached flag.
+is_subscribed = is_premium
 
 
 def activate_subscription(
@@ -2887,16 +3007,24 @@ def activate_subscription(
         if existing and existing["end_date"]:
             base = "MAX(date('now'), date(?))"
         days = int(months) * SUBSCRIPTION_MONTH_DAYS
+        # A manual owner/admin activation is a deliberate override — it also
+        # clears any prior revoke/grace state so re-granting access to a
+        # previously chargeback'd account actually works instead of being
+        # silently blocked by is_premium()'s status check.
         if existing and existing["end_date"]:
             conn.execute(
                 f"""
-                INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, updated_at)
-                VALUES (?, 1, date('now'), date({base}, ? || ' days'), ?, ?, datetime('now'))
+                INSERT INTO subscriptions (user_id, is_active, status, start_date, end_date, method, reference, updated_at)
+                VALUES (?, 1, 'active', date('now'), date({base}, ? || ' days'), ?, ?, datetime('now'))
                 ON CONFLICT(user_id) DO UPDATE SET
                     is_active = 1,
+                    status = 'active',
                     end_date = date({base}, ? || ' days'),
                     method = excluded.method,
                     reference = excluded.reference,
+                    grace_until = NULL,
+                    revoked_at = NULL,
+                    revoke_reason = NULL,
                     updated_at = datetime('now')
                 """,
                 (
@@ -2907,19 +3035,24 @@ def activate_subscription(
         else:
             conn.execute(
                 f"""
-                INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, updated_at)
-                VALUES (?, 1, date('now'), date('now', ? || ' days'), ?, ?, datetime('now'))
+                INSERT INTO subscriptions (user_id, is_active, status, start_date, end_date, method, reference, updated_at)
+                VALUES (?, 1, 'active', date('now'), date('now', ? || ' days'), ?, ?, datetime('now'))
                 ON CONFLICT(user_id) DO UPDATE SET
                     is_active = 1,
+                    status = 'active',
                     start_date = date('now'),
                     end_date = date('now', ? || ' days'),
                     method = excluded.method,
                     reference = excluded.reference,
+                    grace_until = NULL,
+                    revoked_at = NULL,
+                    revoke_reason = NULL,
                     updated_at = datetime('now')
                 """,
                 (int(user_id), f"+{days}", method, reference, f"+{days}"),
             )
         conn.commit()
+        log_subscription_event(int(user_id), "owner_activated", None, f"method={method} months={months}", actor="owner")
         return True, "Subscription activated."
     finally:
         conn.close()
@@ -2956,20 +3089,25 @@ def start_free_trial(user_id: int) -> tuple[bool, str]:
             return False, "You're already subscribed."
         conn.execute(
             """
-            INSERT INTO subscriptions (user_id, is_active, start_date, end_date, method, reference, trial_used, updated_at)
-            VALUES (?, 1, date('now'), date('now', ?), 'trial', 'free trial', 1, datetime('now'))
+            INSERT INTO subscriptions (user_id, is_active, status, start_date, end_date, method, reference, trial_used, updated_at)
+            VALUES (?, 1, 'trial', date('now'), date('now', ?), 'trial', 'free trial', 1, datetime('now'))
             ON CONFLICT(user_id) DO UPDATE SET
                 is_active = 1,
+                status = 'trial',
                 start_date = date('now'),
                 end_date = date('now', ?),
                 method = 'trial',
                 reference = 'free trial',
                 trial_used = 1,
+                grace_until = NULL,
+                revoked_at = NULL,
+                revoke_reason = NULL,
                 updated_at = datetime('now')
             """,
             (int(user_id), f"+{SUBSCRIPTION_TRIAL_DAYS} days", f"+{SUBSCRIPTION_TRIAL_DAYS} days"),
         )
         conn.commit()
+        log_subscription_event(int(user_id), "trial_started", None, "self-serve free trial", actor="self-serve")
         return True, f"Free {SUBSCRIPTION_TRIAL_DAYS}-day trial started!"
     finally:
         conn.close()
@@ -2985,11 +3123,231 @@ def revoke_subscription(user_id: int) -> tuple[bool, str]:
         if not row:
             return False, "This account was never subscribed."
         conn.execute(
-            "UPDATE subscriptions SET is_active = 0, updated_at = datetime('now') WHERE user_id = ?",
+            """
+            UPDATE subscriptions
+            SET is_active = 0, status = 'revoked', revoked_at = datetime('now'),
+                revoke_reason = 'owner_manual', updated_at = datetime('now')
+            WHERE user_id = ?
+            """,
             (int(user_id),),
         )
         conn.commit()
+        log_subscription_event(int(user_id), "revoked", None, "owner manual removal", actor="owner")
         return True, "Subscription removed."
+    finally:
+        conn.close()
+
+
+def log_subscription_event(
+    user_id: int | None, event_type: str, stripe_event_id: str | None,
+    detail: str = "", actor: str = "stripe-webhook",
+) -> None:
+    """Plain audit-log insert — used for actions that don't need Stripe
+    -delivery idempotency (owner/admin actions). For webhook-driven changes,
+    use _apply_stripe_event() instead, which guards against Stripe's retried
+    deliveries. Never pass card numbers or secret keys in `detail`."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO subscription_events (user_id, event_type, stripe_event_id, detail, actor)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (int(user_id) if user_id else None, event_type, stripe_event_id, (detail or "")[:500], actor),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _apply_stripe_event(
+    user_id: int | None, event_type: str, stripe_event_id: str, detail: str,
+    apply_sql: str, apply_params: tuple,
+) -> bool:
+    """Idempotently log + apply a Stripe webhook event in one BEGIN IMMEDIATE
+    transaction: the audit-log insert and the subscription-status write
+    happen atomically. stripe_event_id is globally unique per Stripe event,
+    so INSERT OR IGNORE on it is the dedupe guard against Stripe's retried
+    deliveries — if it's already logged, apply_sql is skipped entirely and
+    this returns False (already processed)."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cur = conn.execute(
+            """
+            INSERT OR IGNORE INTO subscription_events (user_id, event_type, stripe_event_id, detail, actor)
+            VALUES (?, ?, ?, ?, 'stripe-webhook')
+            """,
+            (int(user_id) if user_id else None, event_type, stripe_event_id, (detail or "")[:500]),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return False
+        if apply_sql:
+            conn.execute(apply_sql, apply_params)
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def stripe_revoke_subscription(
+    user_id: int, reason: str, stripe_event_id: str, event_type: str
+) -> bool:
+    """Chargeback, dispute, or refund: cut access immediately, regardless of
+    how much time was left on end_date. Does not wait for a dispute to
+    resolve (that can take banks weeks) — the money is already in question,
+    so access stops now."""
+    return _apply_stripe_event(
+        user_id, event_type, stripe_event_id, reason,
+        """
+        INSERT INTO subscriptions (user_id, is_active, status, end_date, revoked_at, revoke_reason, updated_at)
+        VALUES (?, 0, 'revoked', date('now'), datetime('now'), ?, datetime('now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+            is_active = 0,
+            status = 'revoked',
+            end_date = date('now'),
+            revoked_at = datetime('now'),
+            revoke_reason = excluded.revoke_reason,
+            updated_at = datetime('now')
+        """,
+        (int(user_id), reason),
+    ) if user_id else False
+
+
+def stripe_mark_past_due(user_id: int, stripe_event_id: str) -> bool:
+    """invoice.payment_failed: keep access alive for SUBSCRIPTION_GRACE_DAYS
+    while Stripe's Smart Retries run. COALESCE keeps the first failure's
+    grace_until fixed — a second retry failing on the same invoice doesn't
+    push the deadline out further."""
+    return _apply_stripe_event(
+        user_id, "payment_failed", stripe_event_id, "invoice.payment_failed",
+        """
+        INSERT INTO subscriptions (user_id, is_active, status, grace_until, updated_at)
+        VALUES (?, 1, 'past_due', date('now', ?), datetime('now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+            status = 'past_due',
+            grace_until = COALESCE(grace_until, date('now', ?)),
+            updated_at = datetime('now')
+        """,
+        (int(user_id), f"+{SUBSCRIPTION_GRACE_DAYS} days", f"+{SUBSCRIPTION_GRACE_DAYS} days"),
+    ) if user_id else False
+
+
+def stripe_sync_status(
+    user_id: int, stripe_status: str, current_period_end: str | None,
+    stripe_event_id: str, event_type: str,
+) -> bool:
+    """customer.subscription.created/updated: mirror Stripe's own status.
+    trialing/active/past_due keep access on; anything else (canceled,
+    unpaid, incomplete_expired, ...) revokes — this is what actually cuts
+    access off once Stripe exhausts its own retry schedule and cancels the
+    subscription, no separate cron job needed on our side."""
+    if not user_id:
+        return False
+    local_status = _STRIPE_STATUS_TO_LOCAL.get(stripe_status)
+    if local_status:
+        end_date = current_period_end or None
+        return _apply_stripe_event(
+            user_id, event_type, stripe_event_id, f"stripe_status={stripe_status}",
+            """
+            INSERT INTO subscriptions (user_id, is_active, status, end_date, trial_used, updated_at)
+            VALUES (?, 1, ?, COALESCE(?, date('now')), CASE WHEN ? = 'trial' THEN 1 ELSE 0 END, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+                is_active = 1,
+                status = excluded.status,
+                end_date = COALESCE(?, end_date),
+                trial_used = CASE WHEN ? = 'trial' THEN 1 ELSE trial_used END,
+                grace_until = CASE WHEN ? != 'past_due' THEN NULL ELSE grace_until END,
+                updated_at = datetime('now')
+            """,
+            (int(user_id), local_status, end_date, local_status, end_date, local_status, local_status),
+        )
+    return stripe_revoke_subscription(user_id, f"stripe_status={stripe_status}", stripe_event_id, event_type)
+
+
+def link_stripe_customer(
+    user_id: int, customer_id: str, subscription_id: str, stripe_event_id: str
+) -> bool:
+    """checkout.session.completed: record which Stripe customer/subscription
+    belongs to this account so later charge/dispute/refund events (which
+    only carry Stripe ids, not our user_id) can be traced back."""
+    return _apply_stripe_event(
+        user_id, "checkout_completed", stripe_event_id, f"customer={customer_id}",
+        """
+        INSERT INTO subscriptions (user_id, is_active, status, stripe_customer_id, stripe_subscription_id, updated_at)
+        VALUES (?, 1, 'trial', ?, ?, datetime('now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+            stripe_customer_id = excluded.stripe_customer_id,
+            stripe_subscription_id = excluded.stripe_subscription_id,
+            updated_at = datetime('now')
+        """,
+        (int(user_id), customer_id, subscription_id),
+    ) if user_id else False
+
+
+def record_stripe_charge(charge_id: str, user_id: int) -> None:
+    """Builds the charge_id -> user_id map used to trace charge.dispute.created
+    events (which don't include a customer field) back to an account."""
+    if not charge_id or not user_id:
+        return
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "INSERT OR IGNORE INTO stripe_charges (charge_id, user_id) VALUES (?, ?)",
+            (charge_id, int(user_id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def find_user_by_stripe_charge(charge_id: str) -> int | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT user_id FROM stripe_charges WHERE charge_id = ?", (charge_id,)
+        ).fetchone()
+        return int(row["user_id"]) if row else None
+    finally:
+        conn.close()
+
+
+def find_user_by_stripe_customer(customer_id: str) -> int | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT user_id FROM subscriptions WHERE stripe_customer_id = ?", (customer_id,)
+        ).fetchone()
+        return int(row["user_id"]) if row else None
+    finally:
+        conn.close()
+
+
+def list_fraud_events(limit: int = 50) -> list[dict]:
+    """For the admin panel: recent disputes/refunds/failed payments/revokes,
+    newest first, so the owner can eyeball patterns (repeat names, similar
+    parent emails) without leaving the app to dig through the Stripe
+    dashboard."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT se.id, se.user_id, u.name, u.parent_email, se.event_type,
+                   se.detail, se.stripe_event_id, se.actor, se.created_at
+            FROM subscription_events se
+            LEFT JOIN users u ON u.id = se.user_id
+            WHERE se.event_type IN ('dispute_created', 'refunded', 'payment_failed', 'revoked')
+            ORDER BY se.created_at DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 

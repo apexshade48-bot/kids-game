@@ -1,9 +1,11 @@
 """Kids Word Game — Flask app for ages 4–5."""
 
+import json
 import os
 import re
 import secrets
 import time
+from datetime import datetime, timezone
 from functools import wraps
 from urllib.parse import quote
 
@@ -1118,9 +1120,12 @@ def subscribe():
 def subscribe_card():
     """Start a Stripe Checkout session so anyone can pay by card, worldwide.
 
+    Real recurring billing (mode="subscription"), not a one-time charge —
+    that's what makes chargeback/dispute/refund webhooks, Stripe's own
+    dunning retries, and Stripe's "one free trial per card" check all work.
     Activation itself happens in /webhooks/stripe, not here — Stripe is the
-    source of truth for whether the card payment actually succeeded, and the
-    webhook fires even if the parent closes the tab before the redirect back.
+    source of truth for subscription status, and the webhook fires even if
+    the parent closes the tab before the redirect back.
     """
     if not login_required():
         return redirect(url_for("login"))
@@ -1131,12 +1136,24 @@ def subscribe_card():
     if _effective_subscribed(uid):
         flash("You're already subscribed — no need to pay again.", "error")
         return redirect(url_for("subscribe"))
+    subscription_data = {"metadata": {"user_id": str(uid)}}
+    # Only offer Stripe's own trial once — this account's self-serve trial
+    # (if used) and a Stripe card trial share the same trial_used flag, so
+    # nobody gets two free weeks by mixing both paths.
+    if not db.has_used_trial(uid):
+        subscription_data["trial_period_days"] = db.SUBSCRIPTION_TRIAL_DAYS
     try:
         checkout = stripe.checkout.Session.create(
-            mode="payment",
+            mode="subscription",
             payment_method_types=["card"],
             line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
             client_reference_id=str(uid),
+            metadata={"user_id": str(uid)},
+            subscription_data=subscription_data,
+            # Collect the card even during a trial — this is what lets
+            # Stripe's "limit customers to one trial per payment method"
+            # dashboard setting actually catch a repeat trial attempt.
+            payment_method_collection="always",
             success_url=url_for("subscribe", paid=1, _external=True),
             cancel_url=url_for("subscribe", _external=True),
         )
@@ -1152,23 +1169,77 @@ def webhook_stripe():
     """Stripe calls this directly (no browser session/CSRF token available),
     so it's exempted from CSRF and instead authenticated by verifying Stripe's
     signature on the payload — anyone without STRIPE_WEBHOOK_SECRET can't forge
-    a fake "payment succeeded" event."""
+    a fake "payment succeeded" event.
+
+    Every state-changing branch below is idempotent against Stripe's retried
+    deliveries (db.*'s _apply_stripe_event guards on the event id), so
+    handling the same event twice is always safe.
+    """
     if not STRIPE_ENABLED or not STRIPE_WEBHOOK_SECRET:
         return jsonify({"error": "Not configured"}), 400
     payload = request.data
     sig_header = request.headers.get("Stripe-Signature", "")
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
     except (ValueError, stripe.error.SignatureVerificationError):
         return jsonify({"error": "Invalid payload or signature"}), 400
+    # construct_event() above only verifies the signature; re-parse the same
+    # (now-trusted) payload as a plain dict rather than working with the
+    # stripe-python Event/StripeObject wrapper it returns, which doesn't
+    # support .get() the way a dict does.
+    event = json.loads(payload)
 
-    if event["type"] == "checkout.session.completed":
-        obj = event["data"]["object"]
-        if obj.get("payment_status") == "paid":
+    event_id = event.get("id")
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        if obj.get("mode") == "subscription":
+            uid = obj.get("client_reference_id") or (obj.get("metadata") or {}).get("user_id")
+            customer_id = obj.get("customer")
+            subscription_id = obj.get("subscription")
+            if uid and customer_id and subscription_id:
+                db.link_stripe_customer(int(uid), customer_id, subscription_id, event_id)
+        elif obj.get("payment_status") == "paid":
+            # Legacy one-time-payment sessions, if any are still in flight.
             uid = obj.get("client_reference_id")
             session_id = obj.get("id")
             if uid and session_id:
                 db.record_card_subscription(int(uid), session_id)
+
+    elif event_type in ("customer.subscription.created", "customer.subscription.updated"):
+        uid = (obj.get("metadata") or {}).get("user_id")
+        uid = int(uid) if uid else db.find_user_by_stripe_customer(obj.get("customer"))
+        period_end_ts = obj.get("current_period_end")
+        period_end = (
+            datetime.fromtimestamp(period_end_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+            if period_end_ts else None
+        )
+        db.stripe_sync_status(uid, obj.get("status", ""), period_end, event_id, event_type)
+
+    elif event_type == "invoice.payment_failed":
+        uid = db.find_user_by_stripe_customer(obj.get("customer"))
+        db.stripe_mark_past_due(uid, event_id)
+
+    elif event_type == "invoice.payment_succeeded":
+        uid = db.find_user_by_stripe_customer(obj.get("customer"))
+        charge_id = obj.get("charge")
+        if uid and charge_id:
+            db.record_stripe_charge(charge_id, uid)
+        # Status/end_date recovery comes from the customer.subscription.updated
+        # event Stripe sends alongside this one — no separate write needed here.
+
+    elif event_type == "charge.refunded":
+        uid = db.find_user_by_stripe_customer(obj.get("customer"))
+        db.stripe_revoke_subscription(uid, f"refunded charge {obj.get('id')}", event_id, "refunded")
+
+    elif event_type == "charge.dispute.created":
+        charge_id = obj.get("charge")
+        uid = db.find_user_by_stripe_charge(charge_id) if charge_id else None
+        db.stripe_revoke_subscription(
+            uid, f"dispute on charge {charge_id}: {obj.get('reason', '')}", event_id, "dispute_created"
+        )
+
     return jsonify({"ok": True})
 
 
@@ -1865,6 +1936,7 @@ def admin_panel():
         is_owner=db.is_owner_admin_name(user_name),
         pending_payments=db.list_pending_subscription_requests(),
         subscription_price=db.SUBSCRIPTION_PRICE_PKR,
+        fraud_events=db.list_fraud_events(),
     )
 
 
