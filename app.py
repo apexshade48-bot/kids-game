@@ -250,13 +250,13 @@ def _answer_is_correct(mode: str, target: str, answer: str, allow_spaces: bool) 
 def _start_round(mode: str, words) -> None:
     """Record which words the server actually handed out for this mode's round.
 
-    /api/score checks a submitted answer against this list instead of trusting
-    whatever "word" and "points" the client sends — otherwise anyone could POST
-    directly to /api/score and farm unlimited coins without answering anything.
+                                                              /api/score checks a submitted answer against this list instead of trusting
+                                                              whatever "word" and "points" the client sends — otherwise anyone could POST
+                                                              directly to /api/score and farm unlimited coins without answering anything.
 
-    The round's target words are already visible to the client in the page HTML
-    (hints/speech need them), so a bare "is this word in the round" check isn't
-    enough — a script could just read the page and POST every word at once.
+                                                              The round's target words are already visible to the client in the page HTML
+                                                              (hints/speech need them), so a bare "is this word in the round" check isn't
+                                                              enough — a script could just read the page and POST every word at once.
     We also track an "index" (words must be claimed in the exact order the round
     handed them out — no jumping ahead or scoring out of sequence) and "last_at"
     (a minimum real-time gap is required between claims), so a script can't blast

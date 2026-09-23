@@ -19,12 +19,12 @@ def slot_column(slot: str) -> str:
 
 ADMIN_OWNER_LIMIT = 2
 # 1 quadrillion — owner / Admin set cap (1 qt)
-ADMIN_COST = 1_000_000_000_000_000
+ADMIN_COST = 1_000_000_000_000_000_000_000_000_000_000_000
 ADMIN_ITEM_IDS = ("tee_admin", "pants_admin", "acc_admin")
 
 DEV_OWNER_LIMIT = 1
 # Gift-only, same as Admin gear — cost is a placeholder so it's never realistically buyable.
-DEV_COST = 1_000_000_000_000_000
+DEV_COST = 1_000_000_000_000_000_000_000
 DEV_ITEM_IDS = ("tee_dev", "pants_dev", "acc_dev")
 
 # Lots of cloth for the marketplace. One flex shirt at 1,000,000 coins.
@@ -1231,15 +1231,15 @@ MARKET_ITEMS = (
         "id": "name_apex",
         "slot": "name",
         "label": "Apex Shine",
-        "cost": 10000,
+        "cost": 10000000000000000000000,
         "emoji": "⚡",
         "color": "#c084fc",
         "accent": "#fde68a",
         "pattern": "name",
         "badge": "",
-        "blurb": "Owner-style shine on your Apex ID",
+        "blurb": "For Owner The Apex ",
         "anim": "apex",
-        "legendary": True,
+        "Paradox": True,
     },
 )
 

@@ -1,6 +1,6 @@
 {
   "packageId": "com.wordstars.app",
-  "host": "YOUR-HOST",
+  "host": "apexshade.pythonanywhere.com",
   "name": "Word Stars",
   "launcherName": "Word Stars",
   "display": "standalone",
@@ -11,9 +11,9 @@
   "backgroundColor": "#C4B5FD",
   "enableNotifications": false,
   "startUrl": "/",
-  "iconUrl": "https://YOUR-HOST/static/icons/icon-512.png",
-  "maskableIconUrl": "https://YOUR-HOST/static/icons/icon-512.png",
-  "monochromeIconUrl": "https://YOUR-HOST/static/icons/icon-192.png",
+  "iconUrl": "https://apexshade.pythonanywhere.com/static/icons/icon-512.png",
+  "maskableIconUrl": "https://apexshade.pythonanywhere.com/static/icons/icon-512.png",
+  "monochromeIconUrl": "https://apexshade.pythonanywhere.com/static/icons/icon-192.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -23,7 +23,7 @@
   "appVersionCode": 89,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://YOUR-HOST/static/manifest.json",
+  "webManifestUrl": "https://apexshade.pythonanywhere.com/static/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -32,7 +32,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://YOUR-HOST/",
+  "fullScopeUrl": "https://apexshade.pythonanywhere.com/",
   "minSdkVersion": 21,
   "orientation": "default",
   "fingerprints": []
