@@ -22,6 +22,21 @@
     </div>
   </div>
 
+  <div class="round-progress-wrap" aria-label="Quiz progress">
+    <div class="round-progress-track">
+      <span
+        id="quiz-progress-bar"
+        class="round-progress-fill"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="{{ questions|length }}"
+        aria-valuenow="0"
+        aria-label="Questions completed in this round"
+      ></span>
+    </div>
+    <span id="quiz-progress-caption" class="round-progress-caption">0 of {{ questions|length }} complete</span>
+  </div>
+
   <section id="quiz-panel" class="play-panel">
     <div class="word-stage quiz-stage">
       <p class="coach quiz-prompt" id="quiz-prompt">
@@ -52,7 +67,7 @@
         <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-primary">▶ Play more</a>
         {% endif %}
         <button type="button" class="btn btn-ghost" data-stop-play>Stop</button>
-        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-ghost">Spell</a>
+        <a href="{{ url_for('play', mode=mode) }}" class="btn btn-ghost">Spell it</a>
       </div>
     </div>
   </section>

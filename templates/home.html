@@ -16,8 +16,35 @@
   </div>
 </section>
 
-<a href="{{ url_for('play', mode=play_now_mode or 'letters') }}" class="btn btn-primary btn-play-now js-reveal">▶ Play Letters</a>
-<a href="{{ url_for('play', mode='beginner') }}?pack=talk" class="btn btn-ghost btn-play-now js-reveal">🗣️ Daily Talk (2 min)</a>
+<a href="{{ url_for('play', mode=play_now_mode or 'letters') }}" class="btn btn-primary btn-play-now js-reveal" aria-label="Play {{ modes[play_now_mode or 'letters'].label }}">▶ Play {{ modes[play_now_mode or 'letters'].label }}</a>
+<a href="{{ url_for('play', mode='beginner') }}?pack=talk" class="btn btn-ghost btn-play-now js-reveal">🗣️ Daily Talk · 6 phrases</a>
+
+<section class="card section-card how-to-card js-reveal" aria-label="How to play">
+  <div class="how-to-heading">
+    <span class="how-to-kicker">How to play</span>
+    <span class="how-to-subtitle">One word at a time</span>
+  </div>
+  <div class="how-to-steps">
+    <div class="how-to-step">
+      <span class="how-to-number">1</span>
+      <span class="how-to-icon">🔊</span>
+      <strong>Hear it</strong>
+      <small>Listen or tap slow.</small>
+    </div>
+    <div class="how-to-step">
+      <span class="how-to-number">2</span>
+      <span class="how-to-icon">🎤</span>
+      <strong>Say or type</strong>
+      <small>Use the mic or keys.</small>
+    </div>
+    <div class="how-to-step">
+      <span class="how-to-number">3</span>
+      <span class="how-to-icon">⭐</span>
+      <strong>Check</strong>
+      <small>Earn stars and coins.</small>
+    </div>
+  </div>
+</section>
 
 {% if show_upgrade_hint and not is_subscribed %}
 <section class="card section-card js-reveal" style="border:2px dashed #a78bfa">
@@ -65,7 +92,7 @@
   <h2>❤️ Words I like</h2>
   {% if favorites %}
   <p class="section-desc">You picked these. We will show them more.</p>
-  <p><a href="{{ url_for('play', mode='easy') }}?pack=likes" class="btn btn-ghost btn-small">▶ Play words I like</a></p>
+  <p><a href="{{ url_for('play', mode=favorite_mode or 'easy') }}?pack=likes" class="btn btn-ghost btn-small">▶ Practice words I like</a></p>
   <div class="fav-stickers">
     {% for f in favorites %}
     <span class="fav-sticker" title="{{ f.word }}">
@@ -81,6 +108,14 @@
   </div>
   {% endif %}
 </section>
+
+{% if tricky_count %}
+<section class="card section-card practice-card js-reveal">
+  <h2>🧩 Practice again</h2>
+  <p class="section-desc">Ready to try {{ tricky_count }} missed word{{ '' if tricky_count == 1 else 's' }} in {{ modes[tricky_mode].label }}?</p>
+  <a href="{{ url_for('play', mode=tricky_mode) }}?pack=tricky" class="btn btn-primary" aria-label="Practice missed words in {{ modes[tricky_mode].label }}">Practice missed words</a>
+</section>
+{% endif %}
 
 <section class="home-stats home-stats-compact js-reveal" aria-label="Your stats">
   <div class="stat-card stat-coins">
@@ -114,7 +149,7 @@
   <h2>Your English path</h2>
   <p class="section-desc">
     <strong>Letters → Sounds → Beginner</strong> are free.
-    Then Easy words, then Family talk.
+    Then practice Easy, Normal, Hard, Top, and Family talk. Earn coins to unlock the next levels.
   </p>
 
   <div class="learn-path">
@@ -157,19 +192,19 @@
       </div>
       {% if is_phrases %}
       <div class="mode-actions">
-        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Speak</a>
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Say it</a>
       </div>
       {% elif is_speak %}
       <div class="mode-actions mode-actions-3">
-        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Speak</a>
-        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Quiz</a>
-        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Pics</a>
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Say it</a>
+        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Letter game</a>
+        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Picture game</a>
       </div>
       {% else %}
       <div class="mode-actions mode-actions-3">
-        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Spell</a>
-        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Quiz</a>
-        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Pics</a>
+        <a href="{{ url_for('play', mode=mode_key) }}" class="btn btn-primary btn-mode-play">Spell it</a>
+        <a href="{{ url_for('quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-quiz">Letter game</a>
+        <a href="{{ url_for('pics_quiz', mode=mode_key) }}" class="btn btn-ghost btn-mode-pics">Picture game</a>
       </div>
       {% endif %}
     </div>

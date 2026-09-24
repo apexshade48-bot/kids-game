@@ -56,7 +56,7 @@ from words import (
     daily_talk_items,
 )
 
-APP_VERSION = "9.1"
+APP_VERSION = "9.3"
 PORT = int(os.environ.get("PORT", DEFAULT_PORT))
 DEBUG = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "0").lower() in ("1", "true", "yes")
@@ -823,6 +823,37 @@ def logout():
     return redirect(url_for("login"))
 
 
+def _recommended_mode(scores: dict[str, int], wallet: dict) -> str:
+    """Pick the first unlocked level the child has not scored in yet.
+
+    Keep the main Home button useful on replay without changing any saved
+    progress: new players start at Letters, and returning players are sent to
+    the next unlocked level that still has no stars.
+    """
+    unlocked = wallet.get("unlocked") or {}
+    for mode in MODE_ORDER:
+        if unlocked.get(mode) and int(scores.get(mode, 0) or 0) == 0:
+            return mode
+    for mode in MODE_ORDER:
+        if unlocked.get(mode):
+            return mode
+    return "easy"
+
+
+def _word_matches_mode(word: str, mode: str) -> bool:
+    """Whether a saved word belongs to a playable learning mode."""
+    cfg = MODE_CONFIG.get(mode)
+    value = (word or "").strip().lower()
+    if not cfg or not value:
+        return False
+    if cfg.get("phrases"):
+        return value in cfg.get("words", [])
+    if "letter_min" in cfg:
+        length = len(value.replace(" ", ""))
+        return int(cfg["letter_min"]) <= length <= int(cfg["letter_max"])
+    return len(value) == int(cfg.get("letter_len", 0))
+
+
 @app.route("/home")
 def home():
     if not login_required():
@@ -835,6 +866,34 @@ def home():
     wallet = db.get_user_wallet(session["user_id"])
     progress = db.get_user_progress(session["user_id"])
     spin = db.get_spin_status(session["user_id"])
+    likes = db.get_word_likes(session["user_id"])
+    favorite_mode = next(
+        (
+            mode
+            for mode in MODE_ORDER
+            if wallet["unlocked"].get(mode)
+            and any(_word_matches_mode(word, mode) for word in likes["liked"])
+        ),
+        "easy",
+    )
+    play_data = db.get_play_session(session["user_id"]) or {}
+    tricky_words = []
+    for mistake in play_data.get("mistakes") or []:
+        word = str(mistake.get("word") or "").strip().lower()
+        if word and word not in tricky_words:
+            tricky_words.append(word)
+    tricky_mode = next(
+        (
+            mode
+            for mode in MODE_ORDER
+            if wallet["unlocked"].get(mode)
+            and any(_word_matches_mode(word, mode) for word in tricky_words)
+        ),
+        "easy",
+    )
+    tricky_count = sum(
+        1 for word in tricky_words if _word_matches_mode(word, tricky_mode)
+    )
     if streak_bonus.get("granted"):
         flash(
             f"🔥 {streak_bonus['streak']}-day streak! +{streak_bonus['amount']} coins.",
@@ -853,13 +912,16 @@ def home():
         spin=spin,
         streak_bonus=streak_bonus,
         avatar=db.get_avatar(session["user_id"]),
-        play_now_mode="letters",
+        play_now_mode=_recommended_mode(scores, wallet),
         aura_choices=db.AURA_CHOICES,
         free_modes=db.FREE_MODES,
         favorites=[
             {"word": w, "hint": word_hint(w)}
-            for w in db.get_word_likes(session["user_id"])["liked"][:12]
+            for w in likes["liked"][:12]
         ],
+        favorite_mode=favorite_mode,
+        tricky_mode=tricky_mode,
+        tricky_count=tricky_count,
         wotd=word_of_the_day(),
         daily_done=db.daily_word_done(session["user_id"]),
         badges=db.get_user_badges(session["user_id"]),
@@ -1402,12 +1464,31 @@ def play(mode):
         likes["liked"],
         likes["disliked"],
     )
+    if pack == "tricky":
+        play_data = db.get_play_session(session["user_id"]) or {}
+        tricky = []
+        for mistake in play_data.get("mistakes") or []:
+            word = str(mistake.get("word") or "").strip().lower()
+            if word and _word_matches_mode(word, mode) and word not in tricky:
+                tricky.append(word)
+        if tricky:
+            round_data = [
+                {
+                    "word": word,
+                    "hint": word_hint(word, mode),
+                    "speak": speak_prompt(word, mode),
+                }
+                for word in tricky[: max(1, int(cfg.get("word_count", 8)))]
+            ]
+            cfg = {
+                **cfg,
+                "label": "Practice Again",
+                "blurb": "These are words you missed. Give them another try!",
+            }
+        else:
+            flash("No missed words are waiting yet — here is a fresh round.", "error")
     if pack == "likes" and likes["liked"]:
-        fav = [
-            w
-            for w in likes["liked"]
-            if (mode == "letters" and len(w) == 1) or len(w.replace(" ", "")) >= 2
-        ][:8]
+        fav = [w for w in likes["liked"] if _word_matches_mode(w, mode)][:8]
         if fav:
             round_data = [
                 {

@@ -25,6 +25,21 @@
     </div>
   </div>
 
+  <div class="round-progress-wrap" aria-label="Round progress">
+    <div class="round-progress-track">
+      <span
+        id="round-progress"
+        class="round-progress-fill"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="{{ words|length }}"
+        aria-valuenow="0"
+        aria-label="Words completed in this round"
+      ></span>
+    </div>
+    <span id="round-progress-caption" class="round-progress-caption">0 of {{ words|length }} complete</span>
+  </div>
+
   <section id="play-panel" class="play-panel">
     {% if speak_focus %}
     <p class="hint-note speak-focus-note">
@@ -65,36 +80,36 @@
           placeholder="{% if speak_focus %}Type phrase — use Space between words{% elif hide_word %}Type the word{% else %}Tap to type{% endif %}"
         />
       </label>
-      <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear">⌫</button>
+      <button type="button" id="btn-clear" class="btn btn-small btn-clear" title="Clear" aria-label="Clear answer">⌫</button>
     </div>
 
     <div class="hear-group">
-      <button type="button" id="btn-hear-slow" class="btn btn-ghost btn-small btn-speed" title="Hear it slow">🐢</button>
-      <button type="button" id="btn-hear" class="btn btn-hear" title="Hear the word">
+      <button type="button" id="btn-hear-slow" class="btn btn-ghost btn-small btn-speed" title="Hear it slow" aria-label="Hear the word slowly">🐢</button>
+      <button type="button" id="btn-hear" class="btn btn-hear" title="Hear the word" aria-label="Hear the word">
         🔊 Hear it
       </button>
-      <button type="button" id="btn-hear-fast" class="btn btn-ghost btn-small btn-speed" title="Hear it fast">🐇</button>
+      <button type="button" id="btn-hear-fast" class="btn btn-ghost btn-small btn-speed" title="Hear it fast" aria-label="Hear the word quickly">🐇</button>
     </div>
 
     <div class="action-row">
-      <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word">
+      <button type="button" id="btn-mic" class="btn btn-mic" title="Say the word" aria-label="Say the word">
         🎤 Say it
       </button>
       {% if hide_word %}
-      <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter">
+      <button type="button" id="btn-hint" class="btn btn-ghost" title="Reveal first letter" aria-label="Reveal the first letter">
         💡 Hint
       </button>
       {% endif %}
-      <button type="button" id="btn-check" class="btn btn-primary">
+      <button type="button" id="btn-check" class="btn btn-primary" aria-label="Check answer">
         ✓ Check
       </button>
     </div>
 
     <div class="action-row-utility">
-      <button type="button" id="btn-echo" class="btn btn-ghost btn-small" title="Say it with the voice">
+      <button type="button" id="btn-echo" class="btn btn-ghost btn-small" title="Say it with the voice" aria-label="Hear the word and practice saying it">
         🗣️ Echo
       </button>
-      <button type="button" id="btn-explain" class="btn btn-ghost btn-small" title="Teacher explains this word">
+      <button type="button" id="btn-explain" class="btn btn-ghost btn-small" title="Teacher explains this word" aria-label="Ask Teacher to explain this word">
         🦉 Explain
       </button>
       <a id="btn-teacher" class="btn btn-ghost btn-small" href="{{ url_for('teacher_page') }}">🦉 Teacher</a>
@@ -115,8 +130,8 @@
         <a href="{{ url_for('play', mode=mode) }}" class="btn btn-primary">▶ Play more</a>
         <button type="button" class="btn btn-ghost" data-stop-play>Stop</button>
         {% if not speak_focus %}
-        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-ghost">Quiz</a>
-        <a href="{{ url_for('pics_quiz', mode=mode) }}" class="btn btn-ghost">Pics</a>
+        <a href="{{ url_for('quiz', mode=mode) }}" class="btn btn-ghost">Letter game</a>
+        <a href="{{ url_for('pics_quiz', mode=mode) }}" class="btn btn-ghost">Picture game</a>
         {% endif %}
       </div>
     </div>

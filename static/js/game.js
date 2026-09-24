@@ -79,6 +79,8 @@
 
   const els = {
     progress: document.getElementById("progress"),
+    progressBar: document.getElementById("round-progress"),
+    progressCaption: document.getElementById("round-progress-caption"),
     roundScore: document.getElementById("round-score"),
     playPanel: document.getElementById("play-panel"),
     donePanel: document.getElementById("done-panel"),
@@ -121,6 +123,20 @@
 
   function current() {
     return words[index] || null;
+  }
+
+  function updateProgress(completed) {
+    var done = typeof completed === "number" ? completed : index;
+    var total = words.length;
+    var percent = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    if (els.progressBar) {
+      els.progressBar.style.width = percent + "%";
+      els.progressBar.setAttribute("aria-valuenow", String(done));
+      els.progressBar.setAttribute("aria-valuetext", done + " of " + total + " words complete");
+    }
+    if (els.progressCaption) {
+      els.progressCaption.textContent = done + " of " + total + " complete";
+    }
   }
 
   function normalize(s) {
@@ -278,6 +294,7 @@
     ping(els.targetWord, "word-in");
     ping(els.playPanel, "round-in");
     els.progress.textContent = index + 1 + " / " + words.length;
+    updateProgress();
     els.roundScore.textContent = "⭐ " + roundPoints;
     if (els.btnHint) {
       els.btnHint.disabled = false;
@@ -361,14 +378,19 @@
       });
       const data = await parseJsonResponse(res);
       if (!res.ok) {
-        els.feedback.className = "feedback bad";
-        els.feedback.textContent =
-          (data && data.error) || "Could not save score — try again.";
-        return false;
+        return {
+          ok: false,
+          error: (data && data.error) || "Could not save score — try again.",
+          status: res.status,
+        };
       }
-      if (data.daily_bonus) {
-        els.feedback.textContent =
-          (els.feedback.textContent || "Yes!") + " 🌞 +" + data.daily_bonus + " bonus!";
+      if (!data || data.ok !== true) {
+        return {
+          ok: false,
+          error: (data && data.error) || "Could not save score — try again.",
+          data: data || {},
+          status: res.status,
+        };
       }
       if (typeof data.coins === "number") {
         document.querySelectorAll(".top-coins").forEach(function (el) {
@@ -377,34 +399,55 @@
         var homeCoins = document.getElementById("coin-balance");
         if (homeCoins) homeCoins.textContent = data.coins;
       }
-      return !!data.ok;
+      return { ok: true, data: data, status: res.status };
     } catch (e) {
-      els.feedback.className = "feedback bad";
       var msg = (e && e.message) || "";
       if (/failed to fetch|networkerror|load failed/i.test(msg)) {
-        msg =
-          "Cannot reach the server. Start with python app.py, then reload.";
+        msg = "Cannot reach the server. Start with python app.py, then reload.";
       }
-      els.feedback.textContent =
-        msg || "Lost connection — check Wi‑Fi and try again.";
-      return false;
+      return {
+        ok: false,
+        error: msg || "Lost connection — check Wi‑Fi and try again.",
+        status: 0,
+      };
     }
   }
 
-  function onCorrect(source, answer) {
+  async function onCorrect(source, answer) {
     if (busy) return;
     busy = true;
     hardStopMic();
+    var item = current();
+    els.feedback.className = "feedback";
+    els.feedback.textContent = "Saving your star…";
+    var saved = await awardPoints(answer);
+    if (!saved.ok) {
+      busy = false;
+      if (hideWord && item) showTarget(item.word, false);
+      els.feedback.className = "feedback bad";
+      if (saved.status === 429) {
+        els.feedback.textContent = "Just a moment — tap Check again.";
+      } else {
+        els.feedback.textContent = saved.error + " Tap Check to try saving again.";
+      }
+      return;
+    }
+
     correctCount += 1;
     roundPoints += pointsPerWord;
     roundCoins += pointsPerWord;
+    if (saved.data && saved.data.daily_bonus) {
+      roundCoins += saved.data.daily_bonus;
+    }
     els.roundScore.textContent = "⭐ " + roundPoints;
     els.feedback.textContent =
       source === "voice"
         ? "Great speaking! 🎉 +" + pointsPerWord + " 🪙"
         : "Yes! +" + pointsPerWord + " ⭐ +" + pointsPerWord + " 🪙";
+    if (saved.data && saved.data.daily_bonus) {
+      els.feedback.textContent += " 🌞 +" + saved.data.daily_bonus + " bonus!";
+    }
     els.feedback.className = "feedback ok";
-    var item = current();
     showTarget(item ? item.word : "", true);
     ping(els.targetWord, "celebrate");
     ping(els.wordHint, "celebrate");
@@ -421,7 +464,6 @@
     try {
       if (sfx && sfx.correct) sfx.correct();
     } catch (e) {}
-    awardPoints(answer);
 
     window.setTimeout(function () {
       if (els.targetWord) els.targetWord.classList.remove("celebrate");
@@ -446,9 +488,9 @@
     }
     if (sfx && sfx.wrong) sfx.wrong();
     if (heard) {
-      els.feedback.textContent = 'Almost! You said "' + heard + '". Try again!';
+      els.feedback.textContent = 'Almost! You said "' + heard + '". Tap 🔊 Hear it again, then try.';
     } else {
-      els.feedback.textContent = "Not yet — try again!";
+      els.feedback.textContent = "Almost! Tap 🔊 Hear it again, then try.";
     }
   }
 
@@ -538,7 +580,7 @@
         : typedIsCorrect(item, answer)
     ) {
       setTyped(want, true);
-      onCorrect(source || "type", answer);
+      await onCorrect(source || "type", answer);
     } else {
       onWrong(source === "voice" ? answer : null);
     }
@@ -546,6 +588,7 @@
 
   function finishRound() {
     hardStopMic();
+    updateProgress(words.length);
     els.playPanel.classList.add("hidden");
     els.donePanel.classList.remove("hidden");
     ping(els.donePanel, "win-in");
@@ -604,6 +647,13 @@
         return;
       }
       hintUsedThisWord = true;
+      if (typeof data.coins === "number") {
+        document.querySelectorAll(".top-coins").forEach(function (el) {
+          el.textContent = "🪙 " + data.coins;
+        });
+        var hintHomeCoins = document.getElementById("coin-balance");
+        if (hintHomeCoins) hintHomeCoins.textContent = data.coins;
+      }
       const letter = data.hint_letter || String(item.word)[0].toUpperCase();
       setTyped(letter.toLowerCase());
       els.feedback.className = "feedback ok";

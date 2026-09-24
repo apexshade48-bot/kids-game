@@ -44,6 +44,9 @@
 </section>
 {% else %}
 
+<details class="grownup-panel" {% if not welcome %}open{% endif %}>
+  <summary>Grown-up options — reports, payment, and help</summary>
+
 <section class="card section-card">
   <h2>What you get</h2>
   <ul class="section-desc" style="padding-left:18px">
@@ -121,8 +124,6 @@
   {% endif %}
 </section>
 
-{% endif %}
-
 <section class="card section-card">
   <h2>💬 Talk to the owner</h2>
   <p class="section-desc">
@@ -138,6 +139,9 @@
   <p class="section-desc">Contact email not set up yet — ask the app owner to set OWNER_CONTACT_EMAIL.</p>
   {% endif %}
 </section>
+
+</details>
+{% endif %}
 
 <p class="section-desc">
   <a href="{{ url_for('home') }}" class="btn btn-ghost">▶ Play the game now</a>

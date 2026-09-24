@@ -57,6 +57,8 @@
 
   const els = {
     progress: document.getElementById("quiz-progress"),
+    progressBar: document.getElementById("quiz-progress-bar"),
+    progressCaption: document.getElementById("quiz-progress-caption"),
     score: document.getElementById("quiz-score"),
     panel: document.getElementById("quiz-panel"),
     done: document.getElementById("quiz-done"),
@@ -72,11 +74,26 @@
 
   let index = 0;
   let roundPoints = 0;
+  let roundCoins = 0;
   let correctCount = 0;
   let busy = false;
 
   function current() {
     return questions[index] || null;
+  }
+
+  function updateProgress(completed) {
+    var done = typeof completed === "number" ? completed : index;
+    var total = questions.length;
+    var percent = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    if (els.progressBar) {
+      els.progressBar.style.width = percent + "%";
+      els.progressBar.setAttribute("aria-valuenow", String(done));
+      els.progressBar.setAttribute("aria-valuetext", done + " of " + total + " questions complete");
+    }
+    if (els.progressCaption) {
+      els.progressCaption.textContent = done + " of " + total + " complete";
+    }
   }
 
   function isPicture() {
@@ -127,6 +144,7 @@
     ping(els.blankWord, "word-in");
     ping(els.choices, "choices-in");
     els.progress.textContent = index + 1 + " / " + questions.length;
+    updateProgress();
     els.score.textContent = "⭐ " + roundPoints;
 
     if (els.prompt) {
@@ -158,6 +176,10 @@
         isPicture() && mode !== "letters"
           ? String(choice)
           : String(choice).toUpperCase();
+      btn.setAttribute(
+        "aria-label",
+        isPicture() ? "Choose " + String(choice) : "Choose letter " + String(choice)
+      );
       btn.dataset.answer = String(choice).toLowerCase();
       btn.addEventListener("click", function () {
         pickAnswer(choice, btn);
@@ -185,26 +207,56 @@
       });
       const data = await parseJsonResponse(res);
       if (!res.ok) {
-        if (els.feedback) {
-          els.feedback.className = "feedback bad";
-          els.feedback.textContent =
-            (data && data.error) || "Could not save score.";
-        }
-        return false;
+        return {
+          ok: false,
+          error: (data && data.error) || "Could not save score — try again.",
+          status: res.status,
+        };
       }
-      return !!data.ok;
+      if (!data || data.ok !== true) {
+        return {
+          ok: false,
+          error: (data && data.error) || "Could not save score — try again.",
+          data: data || {},
+          status: res.status,
+        };
+      }
+      if (typeof data.coins === "number") {
+        document.querySelectorAll(".top-coins").forEach(function (el) {
+          el.textContent = "🪙 " + data.coins;
+        });
+        var quizHomeCoins = document.getElementById("coin-balance");
+        if (quizHomeCoins) quizHomeCoins.textContent = data.coins;
+      }
+      return { ok: true, data: data, status: res.status };
     } catch (e) {
-      if (els.feedback) {
-        els.feedback.className = "feedback bad";
-        var msg = (e && e.message) || "";
-        if (/failed to fetch|networkerror|load failed/i.test(msg)) {
-          msg =
-            "Cannot reach the server. Start with python app.py, then reload.";
-        }
-        els.feedback.textContent = msg || "Could not save score.";
+      var msg = (e && e.message) || "";
+      if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        msg = "Cannot reach the server. Start with python app.py, then reload.";
       }
-      return false;
+      return {
+        ok: false,
+        error: msg || "Could not save score.",
+        status: 0,
+      };
     }
+  }
+
+  function retryQuestion(q, want) {
+    if (current() !== q) return;
+    els.choices.querySelectorAll(".quiz-choice").forEach(function (b) {
+      b.disabled = false;
+      b.classList.remove("is-wrong");
+      if (String(b.dataset.answer || "").toLowerCase() === want) {
+        b.classList.add("is-correct");
+      }
+    });
+    busy = false;
+    els.feedback.className = "feedback bad";
+    els.feedback.textContent =
+      "Almost! The answer is " +
+      String(q.word || "").toUpperCase() +
+      ". Tap the green answer to continue.";
   }
 
   async function pickAnswer(choice, btn) {
@@ -217,6 +269,7 @@
       : String(q.missing || "").toLowerCase();
     const got = String(choice || "").toLowerCase();
     const fullWord = String(q.word || "").toUpperCase();
+    const correct = got === want;
 
     const buttons = els.choices.querySelectorAll(".quiz-choice");
     buttons.forEach(function (b) {
@@ -226,41 +279,9 @@
       }
     });
 
-    if (got === want) {
-      correctCount += 1;
-      roundPoints += pointsPerWord;
-      els.score.textContent = "⭐ " + roundPoints;
-      if (!isPicture()) renderBlankWord(q, got);
-      els.feedback.textContent =
-        "Yes! " +
-        fullWord +
-        "  +" +
-        pointsPerWord +
-        " ⭐ +" +
-        pointsPerWord +
-        " 🪙";
-      els.feedback.className = "feedback ok";
-      if (btn) btn.classList.add("is-correct");
-      ping(els.hint, "celebrate");
-      ping(els.score, "score-pop");
-      ping(els.feedback, "pop-in");
-      var stage = document.querySelector(".word-stage");
-      if (stage) {
-        stage.classList.add("is-win");
-        burst(stage);
-        window.setTimeout(function () {
-          stage.classList.remove("is-win");
-        }, 700);
-      }
-      if (sfx && sfx.correct) sfx.correct();
-      // Picture quiz choices are already the full word; the letter quiz only
-      // asks for the missing letter, so the confirmed full word is what
-      // proves the answer (matches what the server's round expects).
-      awardPoints(isPicture() ? choice : q.word || "");
-    } else {
+    if (!correct) {
       if (!isPicture()) renderBlankWord(q, want);
-      els.feedback.textContent =
-        "Almost! The answer is " + fullWord + ".";
+      els.feedback.textContent = "Almost! The answer is " + fullWord + ".";
       els.feedback.className = "feedback bad";
       if (btn) btn.classList.add("is-wrong");
       ping(els.hint, "shake");
@@ -269,7 +290,65 @@
         window.WordStarsStop.reportMistake(q.word || "", got);
       }
       if (sfx && sfx.wrong) sfx.wrong();
+      window.setTimeout(function () {
+        retryQuestion(q, want);
+      }, 1100);
+      return;
     }
+
+    if (!isPicture()) renderBlankWord(q, got);
+    els.feedback.textContent = "Saving your star…";
+    els.feedback.className = "feedback";
+    // Picture quiz choices are already the full word; the letter quiz only
+    // asks for the missing letter, so the confirmed full word is what
+    // proves the answer (matches what the server's round expects).
+    const saved = await awardPoints(isPicture() ? choice : q.word || "");
+    if (!saved.ok) {
+      els.choices.querySelectorAll(".quiz-choice").forEach(function (b) {
+        b.disabled = false;
+      });
+      busy = false;
+      els.feedback.className = "feedback bad";
+      if (saved.status === 429) {
+        els.feedback.textContent = "Just a moment — tap the green answer again.";
+      } else {
+        els.feedback.textContent = saved.error + " Tap the green answer to try saving again.";
+      }
+      return;
+    }
+
+    correctCount += 1;
+    roundPoints += pointsPerWord;
+    roundCoins += pointsPerWord;
+    if (saved.data && saved.data.daily_bonus) {
+      roundCoins += saved.data.daily_bonus;
+    }
+    els.score.textContent = "⭐ " + roundPoints;
+    els.feedback.textContent =
+      "Yes! " +
+      fullWord +
+      "  +" +
+      pointsPerWord +
+      " ⭐ +" +
+      pointsPerWord +
+      " 🪙";
+    if (saved.data && saved.data.daily_bonus) {
+      els.feedback.textContent += " 🌞 +" + saved.data.daily_bonus + " bonus!";
+    }
+    els.feedback.className = "feedback ok";
+    if (btn) btn.classList.add("is-correct");
+    ping(els.hint, "celebrate");
+    ping(els.score, "score-pop");
+    ping(els.feedback, "pop-in");
+    var stage = document.querySelector(".word-stage");
+    if (stage) {
+      stage.classList.add("is-win");
+      burst(stage);
+      window.setTimeout(function () {
+        stage.classList.remove("is-win");
+      }, 700);
+    }
+    if (sfx && sfx.correct) sfx.correct();
 
     function goNext() {
       els.hint.classList.remove("celebrate");
@@ -281,14 +360,11 @@
         showQuestion();
       }
     }
-    if (got === want) {
-      window.setTimeout(goNext, 650);
-    } else {
-      window.setTimeout(goNext, 1100);
-    }
+    window.setTimeout(goNext, 650);
   }
 
   function finishQuiz() {
+    updateProgress(questions.length);
     els.panel.classList.add("hidden");
     els.done.classList.remove("hidden");
     ping(els.done, "win-in");
@@ -310,7 +386,7 @@
       " right. +" +
       roundPoints +
       " stars and +" +
-      roundPoints +
+      roundCoins +
       " coins!" +
       (perfect
         ? " All correct in " + modeLabel + " — your English is getting better every day!"
