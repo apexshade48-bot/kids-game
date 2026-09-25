@@ -8,6 +8,7 @@ between launches in a per-user app data folder.
 
 import os
 import secrets
+import shutil
 import socket
 import sys
 import threading
@@ -36,6 +37,19 @@ def _persistent_secret_key(data_dir: Path) -> str:
     return key
 
 
+def _seed_database(data_dir: Path) -> None:
+    """First launch only: adopt a kids_word_game.db placed next to the
+    app (e.g. copied over from a dev checkout) so an existing account
+    keeps working, instead of always starting from an empty database."""
+    target = data_dir / "kids_word_game.db"
+    if target.exists():
+        return
+    app_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+    candidate = app_dir / "kids_word_game.db"
+    if candidate.exists():
+        shutil.copy2(candidate, target)
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -56,6 +70,7 @@ def _wait_for_server(url: str, timeout: float = 15.0) -> None:
 
 def main() -> None:
     data_dir = _app_data_dir()
+    _seed_database(data_dir)
 
     os.environ.setdefault("DATA_DIR", str(data_dir))
     os.environ.setdefault("SECRET_KEY", _persistent_secret_key(data_dir))
