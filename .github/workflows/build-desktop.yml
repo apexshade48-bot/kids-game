@@ -1,0 +1,76 @@
+name: Build desktop apps
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-desktop.txt
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name "WordStars"
+          --icon "desktop_assets/wordstars.ico"
+          --add-data "templates;templates"
+          --add-data "static;static"
+          desktop_app.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WordStars-windows
+          path: dist/WordStars.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-desktop.txt
+
+      - name: Build .icns app icon
+        run: |
+          mkdir icon.iconset
+          sips -z 16 16     static/icons/icon-512.png --out icon.iconset/icon_16x16.png
+          sips -z 32 32     static/icons/icon-512.png --out icon.iconset/icon_16x16@2x.png
+          sips -z 32 32     static/icons/icon-512.png --out icon.iconset/icon_32x32.png
+          sips -z 64 64     static/icons/icon-512.png --out icon.iconset/icon_32x32@2x.png
+          sips -z 128 128   static/icons/icon-512.png --out icon.iconset/icon_128x128.png
+          sips -z 256 256   static/icons/icon-512.png --out icon.iconset/icon_128x128@2x.png
+          sips -z 256 256   static/icons/icon-512.png --out icon.iconset/icon_256x256.png
+          sips -z 512 512   static/icons/icon-512.png --out icon.iconset/icon_256x256@2x.png
+          sips -z 512 512   static/icons/icon-512.png --out icon.iconset/icon_512x512.png
+          cp static/icons/icon-512.png icon.iconset/icon_512x512@2x.png
+          iconutil -c icns icon.iconset -o desktop_assets/wordstars.icns
+
+      - name: Build .app
+        run: >
+          pyinstaller --noconfirm --clean --windowed
+          --name "WordStars"
+          --icon "desktop_assets/wordstars.icns"
+          --add-data "templates:templates"
+          --add-data "static:static"
+          desktop_app.py
+
+      - name: Package .dmg
+        run: |
+          hdiutil create -volname "Word Stars" -srcfolder "dist/WordStars.app" -ov -format UDZO "WordStars.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WordStars-macos
+          path: WordStars.dmg

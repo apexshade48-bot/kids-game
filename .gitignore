@@ -15,3 +15,7 @@ play-store/*.aab
 play-store/*.apk
 parent_mail.log
 *.log
+build/
+dist/
+*.spec
+desktop_assets/wordstars.icns
