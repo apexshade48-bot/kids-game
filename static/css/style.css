@@ -4867,3 +4867,93 @@ html:has(body.page-quiz)::view-transition-new(root) { animation: none; }
     opacity: 1 !important;
   }
 }
+
+/* ===================================================================
+   Admin payment verification (anti-fraud UI)
+
+   The claim code is the thing the owner matches against the remarks on a real
+   transfer, so it is set in a monospace face and given weight - it gets read
+   aloud and retyped off a phone screen. Blockers are shown instead of an
+   Approve button when the server has already decided the claim is not
+   approvable.
+   =================================================================== */
+
+.admin-claim-code {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.admin-blockers {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.admin-verify {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+.admin-verify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.admin-verify-field input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  padding: 8px 10px;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  width: 100%;
+}
+.admin-verify-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.admin-verify-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* "How to pay" disclosure on the parent-facing subscribe page. */
+.how-to-pay {
+  margin: 10px 0 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+.how-to-pay > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--primary);
+}
+.how-to-pay[open] > summary {
+  margin-bottom: 8px;
+}
+.how-to-pay ol {
+  margin: 0 0 8px;
+}

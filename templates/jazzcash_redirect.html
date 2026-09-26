@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Word Stars — Pay with JazzCash{% endblock %}
+{% block body_class %}page-subscribe{% endblock %}
+
+{% block content %}
+{#
+  Auto-posting form to JazzCash's hosted checkout.
+
+  The signed fields are rendered here rather than built in JavaScript so the
+  request works with scripting disabled, and the page says plainly what is
+  about to happen: the parent is being sent to JazzCash to pay Rs. {{ price }}.
+  No card or wallet credentials are ever collected on this site.
+#}
+<section class="hero">
+  <p class="hero-kicker">JazzCash</p>
+  <h1 class="big-title">Taking you to JazzCash…</h1>
+  <p class="subtitle">
+    Pay <strong>Rs. {{ price }}</strong> on JazzCash's own secure page.
+    Your account activates automatically as soon as JazzCash confirms the payment.
+  </p>
+</section>
+
+<form id="jc-form" method="post" action="{{ checkout_url }}">
+  {% for key, value in fields.items() %}
+  <input type="hidden" name="{{ key }}" value="{{ value }}" />
+  {% endfor %}
+  <noscript>
+    <button type="submit" class="btn btn-primary btn-block">Continue to JazzCash</button>
+  </noscript>
+</form>
+
+<section class="card section-card">
+  <h2>Not happening?</h2>
+  <p class="section-desc">
+    <a href="{{ url_for('subscribe') }}">← Back to payment options</a>
+  </p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // JazzCash's hosted checkout expects a real form POST from a user gesture,
+  // so submit on load rather than redirecting with a GET.
+  (function () {
+    var form = document.getElementById("jc-form");
+    if (form) form.submit();
+  })();
+</script>
+{% endblock %}

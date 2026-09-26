@@ -29,6 +29,17 @@ from shop import (
 _DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent))
 DB_PATH = _DATA_DIR / "kids_word_game.db"
 
+
+def receipts_dir() -> Path:
+    """Where uploaded payment-receipt screenshots live, next to the db file.
+
+    Kept outside static/ so files are never served except through the
+    admin-only /admin/receipts/<name> route in app.py.
+    """
+    d = _DATA_DIR / "receipts"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 # Letters/digits/spaces and a few basic punctuation marks only — this name is later
 # interpolated into an email Subject header (mailer.py), so no control characters,
 # no \r or \n, and no header-injection-friendly symbols.
@@ -331,6 +342,7 @@ def init_db():
         _ensure_badge_tables(conn)
         _ensure_fluency_table(conn)
         _ensure_subscription_table(conn)
+        _ensure_push_table(conn)
         _ensure_admin_user(conn)
         _ensure_starter_clothes(conn)
         conn.commit()
@@ -2485,6 +2497,15 @@ def shade_crush_points(user_id: int) -> tuple[bool, str]:
     return admin_reset_scores(user_id)
 
 
+def is_user_banned(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT is_banned FROM users WHERE id = ?", (int(user_id),)).fetchone()
+        return bool(row and row["is_banned"])
+    finally:
+        conn.close()
+
+
 def shade_ban_user(user_id: int, banned: bool = True) -> tuple[bool, str]:
     conn = get_connection()
     try:
@@ -2798,6 +2819,108 @@ def _ensure_fluency_table(conn) -> None:
     )
 
 
+def _ensure_push_table(conn) -> None:
+    """Web Push subscriptions — one browser/device registration per row.
+
+    A user can have several (phone + tablet), and the same endpoint can only
+    ever belong to one row: re-subscribing the same device updates its keys
+    in place instead of accumulating duplicates that would all get pinged.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)"
+    )
+
+
+def save_push_subscription(user_id: int, endpoint: str, p256dh: str, auth: str) -> bool:
+    endpoint = (endpoint or "").strip()
+    p256dh = (p256dh or "").strip()
+    auth = (auth or "").strip()
+    if not (endpoint and p256dh and auth):
+        return False
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth
+            """,
+            (int(user_id), endpoint, p256dh, auth),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def remove_push_subscription(endpoint: str) -> None:
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", ((endpoint or "").strip(),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def has_push_subscription(user_id: int) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM push_subscriptions WHERE user_id = ? LIMIT 1", (int(user_id),)
+        ).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
+
+def list_inactive_players_with_push(min_days_quiet: int = 2, max_days_quiet: int = 14) -> list[dict]:
+    """
+    Push-subscribed players who haven't played recently — the reminder queue.
+
+    min_days_quiet avoids nagging someone who played yesterday; max_days_quiet
+    stops reminding someone who has clearly moved on for good (an unanswered
+    notification every day forever is exactly how kids end up disabling
+    notifications for the whole browser). One row per subscribed device, since
+    each device needs its own push sent.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT ps.user_id, u.name, ps.endpoint, ps.p256dh, ps.auth,
+                   COALESCE(MAX(a.day), '') AS last_played
+            FROM push_subscriptions ps
+            JOIN users u ON u.id = ps.user_id
+            LEFT JOIN activity a ON a.user_id = ps.user_id
+            WHERE COALESCE(u.is_banned, 0) = 0
+            GROUP BY ps.id
+            HAVING last_played = ''
+                OR (
+                    julianday('now') - julianday(last_played) >= ?
+                    AND julianday('now') - julianday(last_played) <= ?
+                )
+            """,
+            (int(min_days_quiet), int(max_days_quiet)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 SUBSCRIPTION_PRICE_PKR = 1000
 SUBSCRIPTION_MONTH_DAYS = 30
 SUBSCRIPTION_TRIAL_DAYS = 7
@@ -2915,8 +3038,17 @@ def _ensure_subscription_table(conn) -> None:
         )
         """
     )
+    _ensure_payment_claim_columns(conn)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_sub_requests_status ON subscription_requests(status)"
+    )
+    # A claim code must be unique across the whole table, not just among pending
+    # rows: if a code could be reused after expiry, two different parents could
+    # end up holding the same matching key and the owner's cross-check in their
+    # JazzCash app would become ambiguous again.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_requests_claim"
+        " ON subscription_requests(claim_code) WHERE claim_code IS NOT NULL"
     )
     # Stripe can deliver the same webhook event more than once (retries on a
     # slow/failed response) — this stops a duplicate delivery from granting a
@@ -3329,10 +3461,16 @@ def find_user_by_stripe_customer(customer_id: str) -> int | None:
 
 
 def list_fraud_events(limit: int = 50) -> list[dict]:
-    """For the admin panel: recent disputes/refunds/failed payments/revokes,
-    newest first, so the owner can eyeball patterns (repeat names, similar
-    parent emails) without leaving the app to dig through the Stripe
-    dashboard."""
+    """For the admin panel: recent disputes/refunds/failed payments/revokes, plus
+    rejected gateway callbacks, newest first, so the owner can eyeball patterns
+    (repeat names, similar parent emails) without leaving the app.
+
+    'gateway_rejected' is here deliberately: a callback that failed its
+    signature check is either a misconfigured integration or someone probing
+    for a way to mint a free subscription, and both are worth seeing. A burst of
+    them from one account is the clearest possible signal that something is
+    wrong.
+    """
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -3341,7 +3479,9 @@ def list_fraud_events(limit: int = 50) -> list[dict]:
                    se.detail, se.stripe_event_id, se.actor, se.created_at
             FROM subscription_events se
             LEFT JOIN users u ON u.id = se.user_id
-            WHERE se.event_type IN ('dispute_created', 'refunded', 'payment_failed', 'revoked')
+            WHERE se.event_type IN ('dispute_created', 'refunded', 'payment_failed',
+                                    'revoked', 'gateway_rejected', 'gateway_amount_mismatch',
+                                    'manual_reject_fraud', 'auto_banned')
             ORDER BY se.created_at DESC
             LIMIT ?
             """,
@@ -3352,8 +3492,152 @@ def list_fraud_events(limit: int = 50) -> list[dict]:
         conn.close()
 
 
+def _ensure_payment_claim_columns(conn) -> None:
+    """
+    Add the anti-fraud columns to subscription_requests.
+
+    claim_code       short code the payer copies into the transfer remarks so
+                     the owner can match one specific line in their JazzCash app
+                     to one specific claim. A matching aid, not authentication:
+                     remarks are chosen by the sender.
+    expected_amount  the price the claim is only valid for.
+    expires_at       a stale claim cannot be approved, which is what stops an
+                     old genuine receipt being replayed months later.
+    verified_amount  what the owner says actually landed in their account.
+    verified_ref     the transaction ID the owner actually matched. Recording it
+                     is what makes the audit trail meaningful.
+    ip               requester IP, for spotting one address farming claims.
+    gateway          manual | jazzcash_api | stripe
+    txn_ref_no       server-generated pp_TxnRefNo for the automated path.
+    gateway_ref      rrn / tid returned by the gateway.
+    risk_flags       JSON list of automated warnings shown to the admin.
+    receipt_path     filename of the uploaded payment-receipt screenshot
+                     (manual jazzcash/easypaisa flow only), relative to
+                     receipts_dir(). Never a client-controlled path — always a
+                     server-generated name (see app._save_receipt_upload).
+    sender_number    the JazzCash/EasyPaisa mobile number the parent says they
+                     paid FROM. Not verifiable against anything, so it is a
+                     forensic/matching aid for the admin only, never a trust
+                     signal on its own.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(subscription_requests)").fetchall()}
+    additions = {
+        "claim_code": "TEXT",
+        "expected_amount": "INTEGER",
+        "expires_at": "TEXT",
+        "verified_amount": "INTEGER",
+        "verified_ref": "TEXT",
+        "ip": "TEXT",
+        "gateway": "TEXT",
+        "txn_ref_no": "TEXT",
+        "gateway_ref": "TEXT",
+        "risk_flags": "TEXT",
+        "receipt_path": "TEXT",
+        "sender_number": "TEXT",
+    }
+    for name, decl in additions.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE subscription_requests ADD COLUMN {name} {decl}")
+
+
+# Per-actor claim limits. Generous enough that a parent who mistypes their
+# transaction ID twice is never blocked, tight enough that a scripted attacker
+# cannot flood the admin's queue with fake claims.
+CLAIM_LIMIT_PER_ACCOUNT_DAY = 4
+CLAIM_LIMIT_PER_IP_DAY = 12
+
+
+def count_recent_claims(user_id: int | None = None, ip: str | None = None) -> int:
+    """Claims filed in the last 24h by this account and/or from this IP."""
+    conn = get_connection()
+    try:
+        if user_id is not None and ip:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM subscription_requests
+                WHERE created_at >= datetime('now', '-1 day')
+                  AND (user_id = ? OR ip = ?)
+                """,
+                (int(user_id), ip),
+            ).fetchone()
+        elif user_id is not None:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM subscription_requests
+                WHERE created_at >= datetime('now', '-1 day') AND user_id = ?
+                """,
+                (int(user_id),),
+            ).fetchone()
+        elif ip:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM subscription_requests
+                WHERE created_at >= datetime('now', '-1 day') AND ip = ?
+                """,
+                (ip,),
+            ).fetchone()
+        else:
+            return 0
+        return int(row["c"]) if row else 0
+    finally:
+        conn.close()
+
+
+def find_claim_by_code(code: str) -> dict | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM subscription_requests WHERE claim_code = ?", (code,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def find_claim_by_txn_ref(txn_ref_no: str) -> dict | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM subscription_requests WHERE txn_ref_no = ?", (txn_ref_no,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def set_claim_code(request_id: int, claim_code: str) -> bool:
+    """Backfill a claim code onto a request created before this existed."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE subscription_requests SET claim_code = ? WHERE id = ? AND claim_code IS NULL",
+            (claim_code, int(request_id)),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+
 def create_subscription_request(
-    user_id: int, method: str, reference: str, note: str = ""
+    user_id: int,
+    method: str,
+    reference: str,
+    note: str = "",
+    *,
+    ip: str = "",
+    claim_code: str = "",
+    expected_amount: int = 0,
+    expires_at: str = "",
+    txn_ref_no: str = "",
+    gateway: str = "manual",
+    risk_flags: list[str] | None = None,
+    receipt_path: str = "",
+    sender_number: str = "",
 ) -> tuple[bool, str | int]:
     """Parent reports "I sent the payment" — creates a pending row for the owner
     to confirm against their JazzCash/EasyPaisa account before activating."""
@@ -3362,8 +3646,29 @@ def create_subscription_request(
         return False, "Please choose a payment method."
     reference = (reference or "").strip()[:120]
     note = (note or "").strip()[:300]
-    if method in ("jazzcash", "easypaisa") and not reference:
+    ip = (ip or "").strip()[:64]
+    receipt_path = (receipt_path or "").strip()[:200]
+    sender_number = (sender_number or "").strip()[:32]
+    if method in ("jazzcash", "easypaisa") and not reference and not txn_ref_no:
+        # The automated path has no parent-supplied reference at all: JazzCash
+        # supplies it against the server-minted pp_TxnRefNo, which is the entire
+        # reason that path cannot be faked.
         return False, "Please enter the transaction ID from your payment app."
+    if method in ("jazzcash", "easypaisa") and gateway == "manual" and not receipt_path:
+        # A typed transaction ID alone is the exact hole this flow used to have
+        # — anyone can read one off a stranger's screen. A screenshot of the
+        # actual receipt is not proof either, but it is real work to forge and
+        # gives the admin something to actually look at, not just retype.
+        return False, "Please attach a screenshot of your payment receipt."
+
+
+    if count_recent_claims(user_id=int(user_id), ip=ip or None) >= CLAIM_LIMIT_PER_ACCOUNT_DAY:
+        return False, (
+            "Too many payment attempts today. If you already sent the money, "
+            "please wait a day and then contact the app owner directly."
+        )
+
+    flags = list(risk_flags or [])
     conn = get_connection()
     try:
         existing = conn.execute(
@@ -3372,12 +3677,49 @@ def create_subscription_request(
         ).fetchone()
         if existing:
             return False, "You already have a payment waiting for approval."
+
+        # A reference already claimed by a different account is not a typo, it
+        # is the signature of someone quoting a stranger's payment. At creation
+        # time this row does not exist yet, so any other account holding the
+        # same reference necessarily claimed it first. The 'first claimer keeps
+        # it' rule is applied at approval time, where the ordering is known.
+        if reference and method in ("jazzcash", "easypaisa"):
+            dupe = conn.execute(
+                """
+                SELECT 1 FROM subscription_requests
+                WHERE reference = ? AND method = ? AND user_id != ?
+                LIMIT 1
+                """,
+                (reference, method, int(user_id)),
+            ).fetchone()
+            if dupe:
+                flags.append("reused_reference")
+
+        import json
+
         cur = conn.execute(
             """
-            INSERT INTO subscription_requests (user_id, method, reference, note)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO subscription_requests
+                (user_id, method, reference, note, claim_code, expected_amount,
+                 expires_at, ip, gateway, txn_ref_no, risk_flags, receipt_path,
+                 sender_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (int(user_id), method, reference, note),
+            (
+                int(user_id),
+                method,
+                reference,
+                note,
+                claim_code or None,
+                int(expected_amount or 0) or None,
+                expires_at or None,
+                ip or None,
+                gateway,
+                txn_ref_no or None,
+                json.dumps(flags) if flags else None,
+                receipt_path or None,
+                sender_number or None,
+            ),
         )
         conn.commit()
         return True, cur.lastrowid
@@ -3385,12 +3727,15 @@ def create_subscription_request(
         conn.close()
 
 
+
 def get_pending_subscription_request(user_id: int) -> dict | None:
     conn = get_connection()
     try:
         row = conn.execute(
             """
-            SELECT id, method, reference, note, created_at FROM subscription_requests
+            SELECT id, method, reference, note, created_at, claim_code, expected_amount,
+                   expires_at, gateway, txn_ref_no
+            FROM subscription_requests
             WHERE user_id = ? AND status = 'pending'
             ORDER BY created_at DESC LIMIT 1
             """,
@@ -3401,73 +3746,362 @@ def get_pending_subscription_request(user_id: int) -> dict | None:
         conn.close()
 
 
-def list_pending_subscription_requests() -> list[dict]:
-    """For the admin panel: every parent-reported payment awaiting approval.
-
-    Flags `reused_reference` when another account (pending or already
-    approved) reported the exact same jazzcash/easypaisa transaction ID —
-    a real transaction ID only clears one payment on the owner's own
-    JazzCash/EasyPaisa account, so a second report of it is either a typo
-    or someone copying a stranger's ID hoping the owner won't cross-check.
+def _claim_is_expired(conn, expires_at) -> bool:
     """
+    Whether a claim's window has closed.
+
+    expires_at is UTC epoch seconds (see payments.claim_expiry for why), so it
+    is compared against strftime('%s','now') — also UTC — and there is no local
+    timezone anywhere in the decision.
+    """
+    if not expires_at:
+        return False
+    try:
+        return bool(
+            conn.execute(
+                "SELECT 1 WHERE CAST(strftime('%s','now') AS INTEGER) >= CAST(? AS INTEGER)",
+                (str(expires_at),),
+            ).fetchone()
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _reference_claimed_earlier(
+    conn, reference: str, method: str, user_id: int, request_id: int
+) -> bool:
+    """
+    True when some other account reported this same transaction ID first.
+
+    'First' means the lowest request id, which follows insertion order. Only the
+    later claim is treated as suspect: when two accounts quote one transaction
+    ID, exactly one of them sent the money, and the one that got there first is
+    the better bet. Blocking both would mean a scammer who reports a stranger's
+    receipt can also lock the real payer out of the subscription they paid for.
+    """
+    row = conn.execute(
+        """
+        SELECT MIN(id) AS first_id FROM subscription_requests
+        WHERE reference = ? AND method = ?
+        """,
+        (reference, method),
+    ).fetchone()
+    if not row or row["first_id"] is None:
+        return False
+    first = conn.execute(
+        "SELECT user_id FROM subscription_requests WHERE id = ?", (int(row["first_id"]),)
+    ).fetchone()
+    # Only suspicious if the first claimant is a different account.
+    return bool(first and int(first["user_id"]) != int(user_id))
+
+
+def list_pending_subscription_requests() -> list[dict]:
+    """
+    For the admin panel: every payment claim awaiting a decision.
+
+    Each row carries what the owner needs to actually verify the payment in
+    their own JazzCash/EasyPaisa app - the claim code to match on the transfer,
+    the amount that must have arrived, and any automated warnings - plus a
+    precomputed `blockers` list. A claim with anything in `blockers` cannot be
+    approved; the API refuses it server-side, the disabled button in the admin
+    panel is only a courtesy.
+    """
+    import json
+
     conn = get_connection()
     try:
         rows = conn.execute(
             """
-            SELECT sr.id, sr.user_id, u.name, sr.method, sr.reference, sr.note, sr.created_at
+            SELECT sr.id, sr.user_id, u.name, sr.method, sr.reference, sr.note,
+                   sr.created_at, sr.claim_code, sr.expected_amount, sr.expires_at,
+                   sr.ip, sr.gateway, sr.txn_ref_no, sr.risk_flags,
+                   sr.receipt_path, sr.sender_number
             FROM subscription_requests sr
             JOIN users u ON u.id = sr.user_id
             WHERE sr.status = 'pending'
             ORDER BY sr.created_at ASC
             """
         ).fetchall()
-        result = [dict(r) for r in rows]
-        for req in result:
+        result = []
+        for r in rows:
+            req = dict(r)
             ref = (req.get("reference") or "").strip()
-            if req["method"] not in ("jazzcash", "easypaisa") or not ref:
-                req["reused_reference"] = False
-                continue
-            dupe = conn.execute(
-                """
-                SELECT 1 FROM subscription_requests
-                WHERE reference = ? AND method = ? AND user_id != ? AND id != ?
-                LIMIT 1
-                """,
-                (ref, req["method"], req["user_id"], req["id"]),
-            ).fetchone()
-            req["reused_reference"] = dupe is not None
+
+            req["risk_flags"] = json.loads(req["risk_flags"]) if req.get("risk_flags") else []
+            req["expired"] = False
+
+            # Automated, server-side blockers. These are the rules that actually
+            # stop a fraudulent claim; the admin UI just reflects them.
+            blockers = []
+            # Only the manual flow needs a parent-supplied ID. A jazzcash_api
+            # claim is confirmed by the gateway against its own order reference.
+            manual = req["method"] in ("jazzcash", "easypaisa") and (
+                req.get("gateway") or "manual"
+            ) == "manual"
+            req["needs_manual_verification"] = manual
+            if manual and ref:
+                req["reused_reference"] = _reference_claimed_earlier(
+                    conn, ref, req["method"], req["user_id"], req["id"]
+                )
+                if req["reused_reference"]:
+                    blockers.append(
+                        "A different account reported this transaction ID first. "
+                        "A real ID only clears one payment, so check which claim "
+                        "is genuine before approving either."
+                    )
+            if _claim_is_expired(conn, req.get("expires_at")):
+                req["expired"] = True
+                blockers.append(
+                    "This claim has expired. Ask the parent to submit a fresh one."
+                )
+            if manual and not ref:
+                blockers.append("No transaction ID was provided.")
+            if manual and not req.get("receipt_path"):
+                blockers.append("No payment-receipt screenshot was uploaded.")
+            req["blockers"] = blockers
+            req["approvable"] = not blockers
+            result.append(req)
         return result
     finally:
         conn.close()
 
 
+FRAUD_STRIKES_BEFORE_BAN = 2
+
+
 def resolve_subscription_request(
-    request_id: int, approve: bool, actor_name: str
+    request_id: int,
+    approve: bool,
+    actor_name: str,
+    verified_ref: str = "",
+    verified_amount: int | None = None,
+    fraud: bool = False,
 ) -> tuple[bool, str]:
+    """
+    Approve or reject a claim, enforcing every fraud rule server-side.
+
+    The caller cannot bypass anything by hitting the API directly: the same
+    duplicate/expired/missing checks run here as in the admin list, and approval
+    additionally requires the admin to echo back the transaction ID they matched
+    plus the amount that actually landed. That last part is deliberate friction
+    - it forces a real lookup in the JazzCash app instead of a reflexive click
+    on "Approve", and it records what was verified so the decision is
+    auditable afterwards.
+    """
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT id, user_id, status FROM subscription_requests WHERE id = ?",
+            """
+            SELECT id, user_id, status, method, reference, claim_code,
+                   expected_amount, expires_at, gateway
+            FROM subscription_requests WHERE id = ?
+            """,
             (int(request_id),),
         ).fetchone()
         if not row:
             return False, "Request not found."
         if row["status"] != "pending":
-            return False, "Already resolved."
-        conn.execute(
+            return False, "This claim was already resolved."
+
+        if approve:
+            method = row["method"]
+            reference = (row["reference"] or "").strip()
+            # Only the manual flow needs a parent-supplied ID; a jazzcash_api
+            # claim is settled by the gateway, never by an admin clicking here.
+            manual = method in ("jazzcash", "easypaisa") and (
+                row["gateway"] or "manual"
+            ) == "manual"
+
+            if manual and not reference:
+                return False, "Cannot approve: no transaction ID was provided."
+
+            if _claim_is_expired(conn, row["expires_at"]):
+                return False, (
+                    "Cannot approve: this claim has expired. Reject it and ask the "
+                    "parent to submit a new one."
+                )
+
+            if manual and reference and _reference_claimed_earlier(
+                conn, reference, method, row["user_id"], row["id"]
+            ):
+                return False, (
+                    "Blocked: another account reported this transaction ID first. "
+                    "A real ID only clears one payment — work out which claim is "
+                    "genuine before approving either."
+                )
+
+            # The admin must state what they matched against.
+            typed = (verified_ref or "").strip()
+            if manual:
+                if len(typed) < 4:
+                    return False, (
+                        "Type the last 4+ characters of the transaction ID you "
+                        "see in your JazzCash/EasyPaisa app to confirm."
+                    )
+                if reference and typed.lower() not in reference.lower():
+                    return False, (
+                        "That does not match the transaction ID on this claim. "
+                        "Check you are looking at the right payment."
+                    )
+
+            expected = int(row["expected_amount"] or 0)
+            if expected and verified_amount is not None and int(verified_amount) < expected:
+                return False, (
+                    f"Blocked: you recorded {int(verified_amount)} PKR received but "
+                    f"this claim is for {expected} PKR."
+                )
+            if expected and verified_amount is None:
+                return False, "Record how much actually arrived before approving."
+
+        cur = conn.execute(
             """
             UPDATE subscription_requests
-            SET status = ?, resolved_at = datetime('now'), resolved_by = ?
-            WHERE id = ?
+            SET status = ?, resolved_at = datetime('now'), resolved_by = ?,
+                verified_ref = ?, verified_amount = ?
+            WHERE id = ? AND status = 'pending'
             """,
-            ("approved" if approve else "rejected", actor_name, int(request_id)),
+            (
+                "approved" if approve else "rejected",
+                actor_name,
+                (verified_ref or "").strip()[:120] or None,
+                int(verified_amount) if verified_amount is not None else None,
+                int(request_id),
+            ),
         )
+        # The `status = 'pending'` guard makes this race-safe: if two admins
+        # click Approve at once, only the first UPDATE matches a row.
+        won_race = cur.rowcount == 1
         conn.commit()
     finally:
         conn.close()
+
+    if not won_race:
+        return False, "This claim was already resolved by someone else."
     if approve:
         return activate_subscription(row["user_id"], months=1)
-    return True, "Payment request rejected."
+
+    if not fraud:
+        return True, "Payment request rejected."
+
+    # "Reject as fraud" is a distinct, harsher action from a plain reject (a
+    # plain reject also covers honest mistakes — wrong amount, mistyped ID,
+    # claim expired). Fraud is for a claim the admin believes was never a real
+    # payment at all: an invented transaction ID, or a stranger's receipt.
+    # Repeat offenders are auto-banned so a scammer cannot keep re-registering
+    # accounts and burning the admin's time one claim at a time.
+    log_subscription_event(
+        row["user_id"], "manual_reject_fraud", None,
+        f"request_id={request_id} method={row['method']} reference={row['reference'] or ''}",
+        actor=actor_name,
+    )
+    conn = get_connection()
+    try:
+        strikes = conn.execute(
+            "SELECT COUNT(*) AS c FROM subscription_events "
+            "WHERE user_id = ? AND event_type = 'manual_reject_fraud'",
+            (int(row["user_id"]),),
+        ).fetchone()["c"]
+    finally:
+        conn.close()
+    if strikes >= FRAUD_STRIKES_BEFORE_BAN:
+        shade_ban_user(row["user_id"], True)
+        log_subscription_event(
+            row["user_id"], "auto_banned", None,
+            f"{strikes} fraudulent payment claims", actor="system",
+        )
+        return True, (
+            f"Payment request rejected as fraud. This account has now had "
+            f"{strikes} fraudulent claims and has been automatically banned."
+        )
+    return True, (
+        f"Payment request rejected as fraud ({strikes}/{FRAUD_STRIKES_BEFORE_BAN} "
+        "strikes before auto-ban)."
+    )
+
+
+def confirm_claim_from_gateway(
+    txn_ref_no: str, gateway_ref: str, amount_paisa: int
+) -> tuple[bool, str]:
+    """
+    Grant a subscription on JazzCash's own signed confirmation. No admin step.
+
+    This is the path that is actually safe. The claim is located by a
+    server-minted pp_TxnRefNo that the payer never saw, the amount must match
+    the price exactly, and the caller must already have verified the gateway
+    signature (see payments.interpret_callback / payments.status_inquiry). One
+    claim can only ever be consumed once, because the UPDATE is guarded on
+    status = 'pending'.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT id, user_id, status, expected_amount
+            FROM subscription_requests WHERE txn_ref_no = ?
+            """,
+            (txn_ref_no,),
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            return False, "No payment claim matches that reference."
+        if row["status"] != "pending":
+            conn.rollback()
+            return False, "That claim was already resolved."
+
+        expected_paisa = int(row["expected_amount"] or 0) * 100
+        if expected_paisa and int(amount_paisa) != expected_paisa:
+            conn.rollback()
+            # Logged against the account, not just the server log: a payer
+            # repeatedly sending the wrong amount is a pattern the owner should
+            # see, and it is also what an underpayment attempt looks like.
+            log_subscription_event(
+                int(row["user_id"]),
+                "gateway_amount_mismatch",
+                gateway_ref or None,
+                f"txn_ref={txn_ref_no} paid={amount_paisa} expected={expected_paisa}",
+                actor="jazzcash-gateway",
+            )
+            return False, (
+                f"Amount mismatch: paid {int(amount_paisa) / 100:g} PKR, "
+                f"expected {expected_paisa / 100:g} PKR."
+            )
+
+        cur = conn.execute(
+            """
+            UPDATE subscription_requests
+            SET status = 'approved', resolved_at = datetime('now'),
+                resolved_by = 'jazzcash-gateway', verified_amount = ?,
+                verified_ref = ?, gateway = 'jazzcash_api', gateway_ref = ?
+            WHERE id = ? AND status = 'pending'
+            """,
+            (
+                int(amount_paisa) // 100,
+                gateway_ref or None,
+                gateway_ref or None,
+                row["id"],
+            ),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return False, "That claim was already resolved."
+        conn.commit()
+    finally:
+        conn.close()
+
+    log_subscription_event(
+        int(row["user_id"]),
+        "gateway_confirmed",
+        gateway_ref,
+        f"txn_ref={txn_ref_no} amount_paisa={amount_paisa}",
+        actor="jazzcash-gateway",
+    )
+    ok, msg = activate_subscription(
+        int(row["user_id"]), months=1, method="jazzcash", reference=gateway_ref or txn_ref_no
+    )
+    return ok, msg or "Subscription activated."
+
+
 
 
 def record_card_subscription(user_id: int, stripe_session_id: str) -> bool:

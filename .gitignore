@@ -6,6 +6,7 @@ __pycache__/
 .Python
 kids_word_game.db
 *.db-journal
+receipts/
 .DS_Store
 Thumbs.db
 *.jks

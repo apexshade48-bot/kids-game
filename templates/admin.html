@@ -102,10 +102,16 @@
 <section class="admin-team card" id="pending-payments">
   <h2>💳 Pending payments ({{ pending_payments | length }})</h2>
   <p class="admin-team-desc">
-    Parent-reported JazzCash/EasyPaisa payments ({{ subscription_price }} PKR/month). Check the
-    transaction ID against your own JazzCash/EasyPaisa account before approving — approving
-    turns on weekly email reports for that account for 30 days. It does not unlock any
-    levels; those still only unlock by earning coins.
+    Parent-reported JazzCash/EasyPaisa payments ({{ subscription_price }} PKR/month). Approving turns
+    on weekly email reports for that account for 30 days. It does not unlock any levels; those still
+    only unlock by earning coins.
+  </p>
+  <p class="admin-team-desc">
+    <strong>How to verify one:</strong> open your JazzCash/EasyPaisa app, find the transfer of
+    <strong>{{ subscription_price }} PKR</strong> whose <em>remarks</em> contain the claim code shown
+    below. Then type the last 4+ characters of that transfer's transaction ID, and the amount that
+    actually arrived. The server refuses approval if the ID was already used by another account, if
+    the claim has expired, or if the amount is short — the missing buttons below are only a courtesy.
   </p>
   {% if pending_payments %}
   <div class="admin-table-wrap">
@@ -113,29 +119,69 @@
       <thead>
         <tr>
           <th>Player</th>
+          <th>Claim code</th>
           <th>Method</th>
-          <th>Reference</th>
-          <th>Note</th>
+          <th>Reported ID</th>
+          <th>Sender #</th>
+          <th>Receipt</th>
+          <th>Due</th>
           <th>Requested</th>
-          <th>Action</th>
+          <th>Verify &amp; decide</th>
         </tr>
       </thead>
       <tbody>
         {% for req in pending_payments %}
-        <tr id="pay-row-{{ req.id }}"{% if req.reused_reference %} class="admin-table-row-warn"{% endif %}>
+        <tr id="pay-row-{{ req.id }}"{% if not req.approvable %} class="admin-table-row-warn"{% endif %}>
           <td>{{ req.name }}</td>
-          <td>{{ req.method }}</td>
+          <td>
+            <strong class="admin-claim-code">{{ req.claim_code or '—' }}</strong>
+            {% if req.expired %}<span class="admin-table-warn-badge">expired</span>{% endif %}
+          </td>
+          <td>{{ req.method }}{% if req.gateway and req.gateway != 'manual' %} / {{ req.gateway }}{% endif %}</td>
           <td>
             {{ req.reference or '—' }}
             {% if req.reused_reference %}
-            <span class="admin-table-warn-badge" title="This transaction ID was already reported by a different account. A real transaction ID only clears one payment — double-check before approving.">⚠️ reused ID</span>
+            <span class="admin-table-warn-badge" title="This transaction ID was already reported by a different account. A real transaction ID only clears one payment.">⚠️ reused ID</span>
             {% endif %}
           </td>
-          <td>{{ req.note or '—' }}</td>
+          <td>{{ req.expected_amount or subscription_price }} PKR</td>
+          <td>{{ req.sender_number or '—' }}</td>
+          <td>
+            {% if req.receipt_path %}
+            <a href="{{ url_for('admin_view_receipt', filename=req.receipt_path) }}" target="_blank" rel="noopener">📎 view</a>
+            {% else %}—{% endif %}
+          </td>
           <td>{{ req.created_at }}</td>
           <td>
-            <button type="button" class="btn btn-primary" data-resolve-payment="{{ req.id }}" data-approve="1">Approve</button>
-            <button type="button" class="btn btn-ghost" data-resolve-payment="{{ req.id }}" data-approve="0">Reject</button>
+            {% if req.blockers %}
+            <ul class="admin-blockers">
+              {% for b in req.blockers %}<li>{{ b }}</li>{% endfor %}
+            </ul>
+            <div class="admin-verify-actions">
+              <button type="button" class="btn btn-ghost" data-resolve-payment="{{ req.id }}" data-approve="0">Reject</button>
+              <button type="button" class="btn btn-danger" data-resolve-payment="{{ req.id }}" data-approve="0" data-fraud="1">Reject as fraud</button>
+            </div>
+            {% else %}
+            <div class="admin-verify">
+              <label class="admin-verify-field">
+                Last 4+ of matched ID
+                <input type="text" inputmode="numeric" autocomplete="off"
+                       data-verify-ref="{{ req.id }}" maxlength="120"
+                       placeholder="e.g. 7890" />
+              </label>
+              <label class="admin-verify-field">
+                PKR received
+                <input type="number" inputmode="numeric" min="0" step="1"
+                       data-verify-amount="{{ req.id }}"
+                       value="{{ req.expected_amount or subscription_price }}" />
+              </label>
+              <div class="admin-verify-actions">
+                <button type="button" class="btn btn-primary" data-resolve-payment="{{ req.id }}" data-approve="1">Approve</button>
+                <button type="button" class="btn btn-ghost" data-resolve-payment="{{ req.id }}" data-approve="0">Reject</button>
+                <button type="button" class="btn btn-danger" data-resolve-payment="{{ req.id }}" data-approve="0" data-fraud="1">Reject as fraud</button>
+              </div>
+            </div>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -147,13 +193,27 @@
   {% endif %}
 </section>
 
-<section class="admin-team card" id="fraud-events">
-  <h2>🚨 Card disputes, refunds &amp; failed payments ({{ fraud_events | length }})</h2>
+{% if is_owner and push_enabled %}
+<section class="admin-team card" id="push-reminders">
+  <h2>🔔 Play reminders</h2>
   <p class="admin-team-desc">
-    Recent Stripe chargebacks, refunds, failed-payment retries, and revokes, newest first —
-    a quick glance for patterns (repeat names, similar parent emails) before digging into the
-    Stripe Dashboard. Access for a disputed/refunded account is already revoked automatically;
-    this list is for spotting patterns, not for taking action.
+    Sends a "come back and play" push notification to every device that has opted in on
+    /settings and hasn't played in the last 2–14 days. Runs automatically once a day if you've
+    set up the scheduled task (see .env.example); this button fires it on demand.
+  </p>
+  <button type="button" class="btn btn-ghost" id="send-push-reminders">Send reminders now</button>
+</section>
+{% endif %}
+
+<section class="admin-team card" id="fraud-events">
+  <h2>🚨 Disputes, refunds &amp; rejected payments ({{ fraud_events | length }})</h2>
+  <p class="admin-team-desc">
+    Newest first. Card disputes, refunds and failed payments (access for a disputed account is
+    revoked automatically), plus any JazzCash callback that failed its signature check or arrived
+    for the wrong amount. A quick glance for patterns — repeat names, similar parent emails —
+    before digging into the Stripe or JazzCash dashboards. A burst of
+    <em>callback signature invalid</em> entries usually means a misconfigured integration, or
+    someone probing for a way in. For spotting patterns, not for taking action.
   </p>
   {% if fraud_events %}
   <div class="admin-table-wrap">
@@ -169,7 +229,7 @@
       </thead>
       <tbody>
         {% for ev in fraud_events %}
-        <tr{% if ev.event_type in ('dispute_created', 'refunded') %} class="admin-table-row-warn"{% endif %}>
+        <tr{% if ev.event_type in ('dispute_created', 'refunded', 'manual_reject_fraud', 'auto_banned') %} class="admin-table-row-warn"{% endif %}>
           <td>{{ ev.name or '(deleted account)' }}</td>
           <td>{{ ev.parent_email or '—' }}</td>
           <td>{{ ev.event_type }}</td>

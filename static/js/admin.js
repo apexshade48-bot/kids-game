@@ -53,11 +53,57 @@
     btn.addEventListener("click", async function () {
       const requestId = btn.dataset.resolvePayment;
       const approve = btn.dataset.approve === "1";
-      if (approve && !confirm("Confirm this payment was received, and turn on weekly reports?"))
+      const fraud = btn.dataset.fraud === "1";
+      const body = { approve: approve, fraud: fraud };
+
+      if (approve) {
+        // Deliberate friction: the admin has to state what they actually saw in
+        // their JazzCash/EasyPaisa app. The server re-checks both values, so
+        // this cannot be bypassed by calling the API directly - it just stops a
+        // reflexive click from granting a subscription nobody verified.
+        const refInput = document.querySelector('[data-verify-ref="' + requestId + '"]');
+        const amtInput = document.querySelector('[data-verify-amount="' + requestId + '"]');
+        const ref = refInput ? refInput.value.trim() : "";
+        const amount = amtInput ? amtInput.value.trim() : "";
+        if (ref.length < 4) {
+          showStatus("Type the last 4+ characters of the transaction ID you matched.", false);
+          if (refInput) refInput.focus();
+          return;
+        }
+        if (amount === "") {
+          showStatus("Record how much PKR actually arrived.", false);
+          if (amtInput) amtInput.focus();
+          return;
+        }
+        body.verified_ref = ref;
+        body.verified_amount = amount;
+        if (
+          !confirm(
+            "Confirm you found this payment in your own JazzCash/EasyPaisa account:\n\n" +
+              "ID ending: " + ref + "\n" +
+              "Amount received: " + amount + " PKR\n\n" +
+              "Only continue if those match what the parent sent."
+          )
+        )
+          return;
+      } else if (fraud) {
+        if (
+          !confirm(
+            "Reject this as a FRAUDULENT claim (invented or stolen transaction ID)?\n\n" +
+              "This is logged against the account. After repeated fraudulent claims " +
+              "the account is automatically banned. Only use this when you believe " +
+              "no real payment was ever made — use plain Reject for honest mistakes " +
+              "(wrong amount, mistyped ID, expired claim)."
+          )
+        )
+          return;
+      } else if (!confirm("Reject this payment claim?")) {
         return;
+      }
+
       try {
-        await post("/admin/api/payments/" + requestId + "/resolve", { approve: approve });
-        showStatus(approve ? "Approved — weekly reports on!" : "Rejected.", true);
+        const res = await post("/admin/api/payments/" + requestId + "/resolve", body);
+        showStatus((res && res.message) || (approve ? "Approved - weekly reports on!" : "Rejected."), true);
         const row = document.getElementById("pay-row-" + requestId);
         if (row) row.remove();
       } catch (e) {
@@ -65,6 +111,24 @@
       }
     });
   });
+
+  const pushBtn = document.getElementById("send-push-reminders");
+  if (pushBtn) {
+    pushBtn.addEventListener("click", async function () {
+      pushBtn.disabled = true;
+      try {
+        const res = await post("/admin/api/push/send-reminders", {});
+        showStatus(
+          `Sent ${res.sent}, removed ${res.removed_stale} stale, ${res.failed} failed.`,
+          true
+        );
+      } catch (e) {
+        showStatus(friendlyError(e), false);
+      } finally {
+        pushBtn.disabled = false;
+      }
+    });
+  }
 
   document.querySelectorAll(".btn-grant-sub").forEach(function (btn) {
     btn.addEventListener("click", async function () {

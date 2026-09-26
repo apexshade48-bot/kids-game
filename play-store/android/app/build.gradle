@@ -22,8 +22,8 @@ android {
         applicationId "com.wordstars.app"
         minSdk 24
         targetSdk 36
-        versionCode 90
-        versionName "9.0"
+        versionCode 93
+        versionName "9.3"
     }
 
     if (hasReleaseSigning) {

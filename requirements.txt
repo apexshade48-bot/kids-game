@@ -3,3 +3,4 @@ Flask-WTF==1.2.1
 python-dotenv==1.0.1
 gunicorn==23.0.0
 stripe==11.1.1
+pywebpush==2.5.0

@@ -37,6 +37,8 @@ except ImportError:
 import database as db
 import mailer
 import ollama_teacher
+import payments
+import push
 from network import DEFAULT_PORT, get_device_urls
 from words import (
     IMPOSSIBLE_PHRASES,
@@ -86,6 +88,10 @@ app.config.update(
     # BEHIND_PROXY is set to 1 in production (see wsgi.py), 0 for local `python app.py`.
     SESSION_COOKIE_SECURE=BEHIND_PROXY,
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
+    # A payment-receipt screenshot is the only file upload in the app. 6 MB
+    # comfortably fits a phone screenshot; anything bigger is refused outright
+    # by Flask before a single byte of the body reaches our code.
+    MAX_CONTENT_LENGTH=6 * 1024 * 1024,
 )
 csrf = CSRFProtect(app)
 if BEHIND_PROXY:
@@ -814,6 +820,7 @@ def settings_page():
         aura_choices=db.AURA_CHOICES,
         selected_aura=session.get("aura") or db.get_user_aura(session["user_id"]) or "violet",
         parent_email=db.get_parent_email(session["user_id"]),
+        push_enabled=push.push_enabled(),
     )
 
 
@@ -1139,6 +1146,73 @@ def share_progress(token):
     )
 
 
+def _requester_ip() -> str:
+    """
+    Best-effort client IP for claim rate limiting.
+
+    Only used to slow down bulk fake claims, never for access control, so
+    trusting a forwarded header here is acceptable. X-Forwarded-For is only
+    honoured because app.py already trusts it wholesale when BEHIND_PROXY=1.
+    """
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:64]
+    return (request.remote_addr or "")[:64]
+
+
+_RECEIPT_MIME_EXT = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+}
+
+
+def _save_receipt_upload(file_storage, user_id: int) -> tuple[bool, str]:
+    """
+    Save an uploaded payment-receipt screenshot for the manual JazzCash/
+    EasyPaisa flow.
+
+    Returns (ok, receipt_path_or_error). The filename is always server-
+    generated (never the client's filename or anything derived from it), so
+    there is no path-traversal surface and no way for one parent's upload to
+    collide with or overwrite another's.
+    """
+    if not file_storage or not file_storage.filename:
+        return False, "Please attach a screenshot of your payment receipt."
+    mime = (file_storage.mimetype or "").lower()
+    ext = _RECEIPT_MIME_EXT.get(mime)
+    if not ext:
+        return False, "Please upload a screenshot as a JPG, PNG, or WEBP image."
+    name = f"{int(user_id)}-{secrets.token_hex(8)}.{ext}"
+    dest = db.receipts_dir() / name
+    file_storage.save(dest)
+    # MAX_CONTENT_LENGTH already stops anything over 6MB at the WSGI layer,
+    # but an empty/near-empty file is a mistaken tap, not a valid receipt.
+    if dest.stat().st_size < 512:
+        dest.unlink(missing_ok=True)
+        return False, "That file looks empty or unreadable — please try again."
+    return True, name
+
+
+_SENDER_NUMBER_RE = re.compile(r"^03\d{9}$")
+
+
+@app.route("/admin/receipts/<path:filename>")
+@admin_required
+def admin_view_receipt(filename):
+    """
+    Serve an uploaded payment-receipt screenshot — admins only.
+
+    Never linked from anywhere a non-admin session can reach, and Flask's
+    send_from_directory rejects any filename that would escape receipts_dir()
+    (e.g. via '..'), so this cannot be used to read arbitrary files even if
+    someone guessed a URL.
+    """
+    return send_from_directory(db.receipts_dir(), filename)
+
+
 @app.route("/subscribe", methods=["GET", "POST"])
 def subscribe():
     if not login_required():
@@ -1151,31 +1225,313 @@ def subscribe():
         method = request.form.get("method", "")
         reference = request.form.get("reference", "")
         note = request.form.get("note", "")
-        ok, result = db.create_subscription_request(uid, method, reference, note)
+        sender_number = (request.form.get("sender_number") or "").strip()
+        # The code shown on the form is the one recorded against the claim, so
+        # the number the parent pasted into the transfer remarks is provably the
+        # number on their claim. A tampered hidden field can only attach some
+        # other random code to their own claim - it cannot point at somebody
+        # else's, because the claim row is keyed by user_id, not by code.
+        claim_code = (request.form.get("claim_code") or "").strip().upper()[:8]
+        if len(claim_code) != 6:
+            claim_code = payments.new_claim_code()
+        session.pop("payment_claim_code", None)
+        expires_at = payments.claim_expiry()
+
+        if method in ("jazzcash", "easypaisa") and sender_number and not _SENDER_NUMBER_RE.match(
+            sender_number
+        ):
+            flash("The sending number should look like 03XXXXXXXXX.", "error")
+            return redirect(url_for("subscribe"))
+
+        receipt_name = ""
+        if method in ("jazzcash", "easypaisa"):
+            ok, receipt_or_error = _save_receipt_upload(request.files.get("receipt"), uid)
+            if not ok:
+                flash(str(receipt_or_error), "error")
+                return redirect(url_for("subscribe"))
+            receipt_name = receipt_or_error
+
+        ok, result = db.create_subscription_request(
+            uid,
+            method,
+            reference,
+            note,
+            ip=_requester_ip(),
+            claim_code=claim_code,
+            expected_amount=db.SUBSCRIPTION_PRICE_PKR,
+            expires_at=expires_at,
+            gateway="manual",
+            receipt_path=receipt_name,
+            sender_number=sender_number,
+        )
         if not ok:
             flash(str(result), "error")
         else:
             flash(
-                "Thanks! We'll confirm your payment and unlock everything shortly.",
+                f"Got it. Your claim code is {claim_code} — we've asked the owner "
+                "to match it against their JazzCash/EasyPaisa account.",
                 "success",
             )
         return redirect(url_for("subscribe"))
+
+    pending = db.get_pending_subscription_request(uid)
+    # Stored as UTC epoch seconds; shown to the parent in their own timezone so
+    # "come back before X" means something to them.
+    expires_local = ""
+    if pending and pending.get("expires_at"):
+        try:
+            expires_local = (
+                datetime.fromtimestamp(int(pending["expires_at"]), tz=timezone.utc)
+                .astimezone()
+                .strftime("%d %b %H:%M")
+            )
+        except (TypeError, ValueError):
+            expires_local = ""
+    # A claim code is issued on page load, before any money moves, because the
+    # parent has to paste it into the transfer remarks. It lives in the session
+    # until they submit, at which point it is burned and attached to the claim.
+    if not pending:
+        claim_code = session.get("payment_claim_code")
+        if not claim_code:
+            claim_code = payments.new_claim_code()
+            session["payment_claim_code"] = claim_code
+    else:
+        claim_code = pending.get("claim_code") or payments.new_claim_code()
+
     return render_template(
         "subscribe.html",
         name=session.get("user_name", "Friend"),
         price=db.SUBSCRIPTION_PRICE_PKR,
         subscription=db.get_subscription(uid),
         is_subscribed=_effective_subscribed(uid),
-        pending=db.get_pending_subscription_request(uid),
+        pending=pending,
+        expires_local=expires_local,
+        claim_code=claim_code,
         jazzcash_number=os.environ.get("JAZZCASH_NUMBER", ""),
         easypaisa_number=os.environ.get("EASYPAISA_NUMBER", ""),
         card_enabled=STRIPE_ENABLED,
+        jazzcash_checkout=payments.jazzcash_checkout_enabled(),
+        jazzcash_auto=payments.jazzcash_api_enabled(),
+        claim_ttl_hours=payments.CLAIM_VALID_HOURS,
         owner_email=os.environ.get("OWNER_CONTACT_EMAIL", ""),
         welcome=request.args.get("welcome") == "1",
         just_paid=request.args.get("paid") == "1",
         trial_available=not db.has_used_trial(uid) and not _effective_subscribed(uid),
         trial_days=db.SUBSCRIPTION_TRIAL_DAYS,
     )
+
+
+@app.route("/subscribe/jazzcash/start", methods=["POST"])
+def subscribe_jazzcash_start():
+    """
+    Create a claim the gateway itself can confirm later.
+
+    The order reference is generated server-side and never shown to the payer as
+    anything they must send back. Once JazzCash confirms payment for it - by
+    signed callback or by status inquiry - the subscription turns on with no
+    admin involved, which is the only version of this flow that cannot be
+    scammed by inventing a transaction ID.
+    """
+    if not login_required():
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    if _effective_subscribed(uid):
+        flash("You're already subscribed — no need to pay again.", "error")
+        return redirect(url_for("subscribe"))
+
+    txn_ref = payments.new_txn_ref_no(uid)
+    claim_code = payments.new_claim_code()
+    expires_at = payments.claim_expiry()
+    ok, result = db.create_subscription_request(
+        uid,
+        "jazzcash",
+        "",  # no parent-supplied reference: the gateway supplies it
+        "JazzCash hosted checkout",
+        ip=_requester_ip(),
+        claim_code=claim_code,
+        expected_amount=db.SUBSCRIPTION_PRICE_PKR,
+        expires_at=expires_at,
+        txn_ref_no=txn_ref,
+        gateway="jazzcash_api",
+    )
+    if not ok:
+        flash(str(result), "error")
+        return redirect(url_for("subscribe"))
+
+    session["jazzcash_pending_ref"] = txn_ref
+    return redirect(url_for("subscribe_jazzcash_pay", txn_ref=txn_ref))
+
+
+@app.route("/subscribe/jazzcash/pay/<txn_ref>")
+def subscribe_jazzcash_pay(txn_ref: str):
+    """
+    Hosted JazzCash checkout for our own order reference.
+
+    The order is looked up by pp_TxnRefNo and must belong to the logged-in
+    account, so nobody can pay towards (or enumerate) someone else's claim.
+    """
+    if not login_required():
+        return redirect(url_for("login"))
+    if not payments.jazzcash_checkout_enabled():
+        flash(
+            "JazzCash checkout isn't set up on this app yet — please use the "
+            "JazzCash or EasyPaisa transfer option below.",
+            "error",
+        )
+        return redirect(url_for("subscribe"))
+
+    claim = db.find_claim_by_txn_ref(txn_ref)
+    if not claim or claim["user_id"] != session["user_id"]:
+        flash("That payment link is not valid.", "error")
+        return redirect(url_for("subscribe"))
+    if claim["status"] != "pending":
+        flash("That payment was already submitted.", "error")
+        return redirect(url_for("subscribe"))
+
+    cfg = payments.jazzcash_config()
+    fields = payments.sign_request(
+        {
+            "pp_TxnRefNo": txn_ref,
+            "pp_Amount": payments.amount_to_paisa(db.SUBSCRIPTION_PRICE_PKR),
+            "pp_TxnCurrency": "PKR",
+            "pp_TxnType": "MWALLET",
+            "pp_MerchantID": cfg["merchant_id"],
+            "pp_Password": cfg["password"],
+            "pp_ReturnURL": cfg["return_url"] or url_for("subscribe", _external=True),
+            "pp_Version": "1.1",
+            "pp_TxnDateTime": datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+            "pp_Language": "EN",
+            "pp_TxnExpiryDate": datetime.now(timezone.utc).strftime("%Y%m%d"),
+            "pp_ExpiryDays": "1",
+            "pp_SubMerchantID": "",
+            "pp_TxnMemo": claim["claim_code"] or txn_ref,
+        }
+    )
+    return render_template(
+        "jazzcash_redirect.html",
+        checkout_url=cfg["checkout_url"],
+        fields=fields,
+        price=db.SUBSCRIPTION_PRICE_PKR,
+        txn_ref=txn_ref,
+    )
+
+
+@app.route("/subscribe/jazzcash/check", methods=["POST"])
+def subscribe_jazzcash_check():
+    """
+    Ask JazzCash whether our order reference was actually paid.
+
+    The reconciliation path for a lost callback. The answer comes from the
+    gateway keyed on a reference the payer never saw, so there is nothing here
+    for a parent to lie about.
+    """
+    if not login_required():
+        return redirect(url_for("login"))
+    txn_ref = (request.form.get("txn_ref") or session.get("jazzcash_pending_ref") or "").strip()
+    if not txn_ref:
+        flash("No payment to check yet.", "error")
+        return redirect(url_for("subscribe"))
+
+    claim = db.find_claim_by_txn_ref(txn_ref)
+    if not claim or claim["user_id"] != session["user_id"]:
+        flash("That payment reference is not valid.", "error")
+        return redirect(url_for("subscribe"))
+
+    try:
+        result = payments.status_inquiry(txn_ref)
+    except payments.JazzCashNotConfigured as exc:
+        flash(
+            "We can't reach JazzCash to confirm automatically right now. "
+            "The owner will confirm your payment manually.",
+            "error",
+        )
+        app.logger.warning("JazzCash status inquiry unavailable: %s", exc)
+        return redirect(url_for("subscribe"))
+
+    if not result.get("ok"):
+        flash(
+            "JazzCash didn't confirm that payment. If you were charged, contact "
+            "the app owner and they will sort it out.",
+            "error",
+        )
+        return redirect(url_for("subscribe"))
+    if not result.get("paid"):
+        flash(
+            f"JazzCash says that payment is '{result.get('status') or 'not completed'}'. "
+            "If you were charged, contact the app owner.",
+            "error",
+        )
+        return redirect(url_for("subscribe"))
+
+    # The inquiry response does not carry the amount, so the amount check runs
+    # against the price we recorded when the claim was created. The gateway's
+    # own signature/status is what authorises this, not the payer.
+    ok, msg = db.confirm_claim_from_gateway(
+        txn_ref, result.get("rrn") or "", payments.amount_to_paisa(db.SUBSCRIPTION_PRICE_PKR)
+    )
+    if ok:
+        session.pop("jazzcash_pending_ref", None)
+        flash("Payment confirmed — your weekly reports are on! ⭐", "success")
+    else:
+        flash(msg, "error")
+    return redirect(url_for("subscribe"))
+
+
+@app.route("/webhooks/jazzcash", methods=["POST"])
+@csrf.exempt
+def webhook_jazzcash():
+    """
+    JazzCash server-to-server payment callback (IPN).
+
+    This is the only path that can grant a subscription with no human in the
+    loop, so it is the strictest: the HMAC signature must verify, the response
+    code must be JazzCash's documented success code, the order must exist, and
+    the amount must match the price exactly. Anything else is logged and
+    refused. CSRF is exempt because the caller is JazzCash's server, not a
+    browser - authenticity comes from the signature, not the session.
+    """
+    fields = {k: v for k, v in request.form.items()}
+    if not fields and request.is_json:
+        fields = request.get_json(silent=True) or {}
+
+    result = payments.interpret_callback(fields)
+
+    if not result["verified"]:
+        app.logger.warning(
+            "JazzCash callback rejected: signature check failed (%s)",
+            ",".join(sorted(fields))[:200],
+        )
+        db.log_subscription_event(
+            None, "gateway_rejected", None,
+            "callback signature invalid", actor="jazzcash-gateway",
+        )
+        return jsonify({"ok": False, "error": "invalid signature"}), 400
+
+    if not result["success"]:
+        app.logger.info(
+            "JazzCash callback: not a success (code=%s status=%s)",
+            result["response_code"], result["response_message"],
+        )
+        return jsonify({"ok": True, "activated": False})
+
+    txn_ref = result["txn_ref_no"]
+    if not txn_ref:
+        return jsonify({"ok": False, "error": "missing pp_TxnRefNo"}), 400
+    if not result["amount_paisa"]:
+        return jsonify({"ok": False, "error": "missing pp_Amount"}), 400
+
+    ok, msg = db.confirm_claim_from_gateway(
+        txn_ref, result["tid"] or result["rrn"] or "", int(result["amount_paisa"])
+    )
+    if not ok:
+        # Already-confirmed callbacks are normal (JazzCash retries), so this is
+        # a success from the gateway's point of view as long as the claim is
+        # simply gone or already resolved.
+        app.logger.info("JazzCash callback for %s: %s", txn_ref, msg)
+        return jsonify({"ok": True, "activated": False, "detail": msg})
+    app.logger.info("JazzCash callback activated claim %s", txn_ref)
+    return jsonify({"ok": True, "activated": True})
+
 
 
 @app.route("/subscribe/card", methods=["POST"])
@@ -1970,6 +2326,71 @@ def api_spin_status():
     return jsonify({"ok": True, **db.get_spin_status(session["user_id"])})
 
 
+@app.route("/api/push/public-key")
+def api_push_public_key():
+    """The browser needs this to call PushManager.subscribe(); harmless to
+    expose to anyone since it's a public key, not a secret."""
+    return jsonify({"key": push.vapid_public_key(), "enabled": push.push_enabled()})
+
+
+@app.route("/api/push/subscribe", methods=["POST"])
+def api_push_subscribe():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    endpoint = str(data.get("endpoint") or "")
+    keys = data.get("keys") or {}
+    ok = db.save_push_subscription(
+        session["user_id"], endpoint, str(keys.get("p256dh") or ""), str(keys.get("auth") or "")
+    )
+    if not ok:
+        return jsonify({"error": "Invalid subscription."}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+def api_push_unsubscribe():
+    if not login_required():
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    db.remove_push_subscription(str(data.get("endpoint") or ""))
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/push/send-reminders", methods=["POST"])
+@csrf.exempt
+def admin_api_send_push_reminders():
+    """
+    Fire the "come back and play" reminder blast — from the admin panel's
+    button, or from an external scheduler.
+
+    PythonAnywhere's free plan gives exactly one Scheduled Task, and this
+    project already spends it on the weekly parent-report email (see
+    /admin/api/send-weekly-reports). Rather than compete for that one slot,
+    this endpoint accepts the SAME shared secret (WEEKLY_REPORT_CRON_KEY) as
+    an X-Cron-Key header, so it can be triggered daily by any external cron
+    (cron-job.org, a GitHub Actions schedule, UptimeRobot, etc.) without
+    needing a second secret or a second local PythonAnywhere task.
+
+    CSRF-exempt for the same reason as /admin/api/send-weekly-reports: an
+    external cron cannot hold a CSRF token, and it is the shared-secret /
+    owner-only check below that actually authorizes this call.
+    """
+    cron_key = os.environ.get("WEEKLY_REPORT_CRON_KEY", "")
+    given_key = request.headers.get("X-Cron-Key", "")
+    authorized_by_key = bool(cron_key) and secrets.compare_digest(given_key, cron_key)
+    if not authorized_by_key:
+        if not login_required():
+            return jsonify({"error": "Not logged in."}), 401
+        if not db.is_owner_admin_name(session.get("user_name", "")):
+            return jsonify({"error": "Apex Shade only."}), 403
+    if not push.push_enabled():
+        return jsonify({"error": "Push notifications are not configured (see .env.example)."}), 400
+    targets = db.list_inactive_players_with_push()
+    result = push.send_reminders_batch(targets)
+    return jsonify({"ok": True, **result})
+
+
 @app.route("/leaderboard")
 def leaderboard():
     if not login_required():
@@ -2018,16 +2439,41 @@ def admin_panel():
         pending_payments=db.list_pending_subscription_requests(),
         subscription_price=db.SUBSCRIPTION_PRICE_PKR,
         fraud_events=db.list_fraud_events(),
+        push_enabled=push.push_enabled(),
     )
 
 
 @app.route("/admin/api/payments/<int:request_id>/resolve", methods=["POST"])
 @admin_required
 def admin_api_resolve_payment(request_id):
+    """
+    Approve or reject a claim.
+
+    Approval requires the admin to state what they actually verified: the
+    transaction ID they matched (checked against the claim) and the amount that
+    landed (checked against the price). Both are recorded, and every rule is
+    re-checked here rather than trusted from the client.
+    """
     data = request.get_json(silent=True) or {}
     approve = bool(data.get("approve"))
+    fraud = bool(data.get("fraud")) and not approve
+    verified_ref = (data.get("verified_ref") or "").strip()
+    raw_amount = data.get("verified_amount")
+    verified_amount = None
+    if raw_amount not in (None, "", "null"):
+        try:
+            verified_amount = int(raw_amount)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Amount must be a whole number of PKR."}), 400
+        if verified_amount < 0:
+            return jsonify({"error": "Amount cannot be negative."}), 400
     ok, msg = db.resolve_subscription_request(
-        request_id, approve, session.get("user_name", "Admin")
+        request_id,
+        approve,
+        session.get("user_name", "Admin"),
+        verified_ref=verified_ref,
+        verified_amount=verified_amount,
+        fraud=fraud,
     )
     if not ok:
         return jsonify({"error": msg}), 400
@@ -2056,6 +2502,7 @@ def admin_api_revoke_subscription(user_id):
 
 
 @app.route("/admin/api/send-weekly-reports", methods=["POST"])
+@csrf.exempt
 def admin_api_send_weekly_reports():
     """Bulk send, meant to be hit weekly by a PythonAnywhere Scheduled Task.
     That task is a plain script, not a browser — it can't hold a login-session
@@ -2064,6 +2511,10 @@ def admin_api_send_weekly_reports():
     isn't set, the cron-key path is disabled entirely (session login is still
     always available). Idempotent: only sends to accounts that haven't gotten
     a report in the last 6 days.
+
+    CSRF-exempt like the payment webhooks below, for the same reason: an
+    external cron script cannot hold a CSRF token, and the shared-secret /
+    owner-only check above is what actually authorizes this, not a cookie.
     """
     cron_key = os.environ.get("WEEKLY_REPORT_CRON_KEY", "")
     given_key = request.headers.get("X-Cron-Key", "")

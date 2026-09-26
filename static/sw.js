@@ -1,5 +1,5 @@
-/* Minimal service worker so Play TWA treats Word Stars as an installable PWA. */
-const CACHE = "wordstars-v9";
+/* Service worker: installable-PWA caching + "come back and play" push reminders. */
+const CACHE = "wordstars-v10";
 const PRECACHE = [
   "/static/manifest.json",
   "/static/icons/icon-192.png",
@@ -50,6 +50,38 @@ self.addEventListener("fetch", function (event) {
   event.respondWith(
     fetch(req).catch(function () {
       return caches.match(req);
+    })
+  );
+});
+
+self.addEventListener("push", function (event) {
+  var data = { title: "Word Stars", body: "Come back and play!", url: "/home" };
+  if (event.data) {
+    try {
+      data = Object.assign(data, event.data.json());
+    } catch (e) {
+      data.body = event.data.text() || data.body;
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/static/icons/icon-192.png",
+      badge: "/static/icons/icon-192.png",
+      data: { url: data.url || "/home" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || "/home";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        if ("focus" in list[i]) return list[i].focus();
+      }
+      if (clients.openWindow) return clients.openWindow(url);
     })
   );
 });

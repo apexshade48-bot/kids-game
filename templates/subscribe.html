@@ -36,11 +36,25 @@
 {% elif pending %}
 <section class="card section-card" style="border:2px solid #f59e0b">
   <h2>⏳ Payment submitted</h2>
+  {% if pending.claim_code %}
+  <p class="section-desc">
+    Your claim code is
+    <strong style="font-size:1.3rem;letter-spacing:0.1em">{{ pending.claim_code }}</strong>
+  </p>
+  <p class="section-desc">
+    The owner matches that code against their JazzCash/EasyPaisa account, so they
+    know exactly which payment is yours. Weekly email reports switch on the
+    moment it's approved.
+  </p>
+  {% if expires_local %}
+  <p class="section-desc">Please allow until <strong>{{ expires_local }}</strong> (about {{ claim_ttl_hours }} hours).</p>
+  {% endif %}
+  {% else %}
   <p class="section-desc">
     We've got your {{ pending.method }} payment (ref: {{ pending.reference or '—' }}) and
-    we're confirming it. Weekly email reports switch on automatically the moment
-    it's approved.
+    we're confirming it.
   </p>
+  {% endif %}
 </section>
 {% else %}
 
@@ -69,17 +83,72 @@
 
 <section class="card section-card">
   <h2>Pay by JazzCash</h2>
+  {% if jazzcash_checkout %}
+  <p class="section-desc">
+    Pay <strong>Rs. {{ price }}</strong> on JazzCash's own secure page.
+    Your account switches on automatically as soon as JazzCash confirms it — no
+    waiting, and nothing for you to type in afterwards.
+  </p>
+  <form method="post" action="{{ url_for('subscribe_jazzcash_start') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn btn-primary btn-block">📱 Pay with JazzCash</button>
+  </form>
+  <p class="section-desc" style="margin-top:10px">
+    Prefer to send it yourself? Use the transfer option below.
+  </p>
+  {% else %}
+  <p class="section-desc">
+    Automatic card-free checkout isn't switched on yet, so this works as a
+    transfer: send <strong>Rs. {{ price }}</strong> to
+    {% if jazzcash_number %}<strong>{{ jazzcash_number }}</strong>{% else %}<em>the number the app owner gives you</em>{% endif %}.
+  </p>
+  {% endif %}
+</section>
+
+<section class="card section-card">
+  <h2>Pay by JazzCash transfer</h2>
   {% if jazzcash_number %}
-  <p class="section-desc">Send <strong>Rs. {{ price }}</strong> via JazzCash to <strong>{{ jazzcash_number }}</strong>, then tell us the transaction ID below.</p>
+  <p class="section-desc">
+    Send <strong>Rs. {{ price }}</strong> via JazzCash to <strong>{{ jazzcash_number }}</strong>.
+  </p>
   {% else %}
   <p class="section-desc">JazzCash number not set up yet — ask the app owner.</p>
   {% endif %}
-  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form">
+  <details class="how-to-pay">
+    <summary>How to make this count as a payment</summary>
+    <ol class="section-desc" style="padding-left:18px">
+      <li>
+        Copy your claim code:
+        <strong style="font-size:1.2rem;letter-spacing:0.1em">{{ claim_code }}</strong>
+      </li>
+      <li>Send exactly <strong>Rs. {{ price }}</strong> to the number above.</li>
+      <li>
+        In the transfer's <strong>remarks / note</strong>, paste that claim code
+        exactly as written.
+      </li>
+      <li>Type the transaction ID from your JazzCash app receipt below, attach a screenshot of that receipt, and submit.</li>
+    </ol>
+    <p class="section-desc">
+      The claim code is what lets the owner match your payment to your account
+      without guessing between other transfers of the same amount. Claims are
+      checked for {{ claim_ttl_hours }} hours.
+    </p>
+  </details>
+  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="hidden" name="method" value="jazzcash" />
+    <input type="hidden" name="claim_code" value="{{ claim_code }}" />
     <label>
       JazzCash transaction ID
       <input type="text" name="reference" maxlength="120" required placeholder="e.g. 123456789" />
+    </label>
+    <label>
+      Your JazzCash number (the one you sent from)
+      <input type="tel" name="sender_number" maxlength="11" pattern="03[0-9]{9}" placeholder="03XXXXXXXXX" />
+    </label>
+    <label>
+      Screenshot of the payment receipt
+      <input type="file" name="receipt" accept="image/*" capture="environment" required />
     </label>
     <label>
       Note (optional)
@@ -89,19 +158,33 @@
   </form>
 </section>
 
+
 <section class="card section-card">
   <h2>Pay by EasyPaisa</h2>
   {% if easypaisa_number %}
-  <p class="section-desc">Send <strong>Rs. {{ price }}</strong> via EasyPaisa to <strong>{{ easypaisa_number }}</strong>, then tell us the transaction ID below.</p>
+  <p class="section-desc">
+    Send <strong>Rs. {{ price }}</strong> via EasyPaisa to <strong>{{ easypaisa_number }}</strong>.
+    Put your claim code
+    <strong style="letter-spacing:0.1em">{{ claim_code }}</strong> in the transfer remarks.
+  </p>
   {% else %}
   <p class="section-desc">EasyPaisa number not set up yet — ask the app owner.</p>
   {% endif %}
-  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form">
+  <form method="post" action="{{ url_for('subscribe') }}" class="auth-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="hidden" name="method" value="easypaisa" />
+    <input type="hidden" name="claim_code" value="{{ claim_code }}" />
     <label>
       EasyPaisa transaction ID
       <input type="text" name="reference" maxlength="120" required placeholder="e.g. 987654321" />
+    </label>
+    <label>
+      Your EasyPaisa number (the one you sent from)
+      <input type="tel" name="sender_number" maxlength="11" pattern="03[0-9]{9}" placeholder="03XXXXXXXXX" />
+    </label>
+    <label>
+      Screenshot of the payment receipt
+      <input type="file" name="receipt" accept="image/*" capture="environment" required />
     </label>
     <label>
       Note (optional)

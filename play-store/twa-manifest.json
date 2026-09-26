@@ -19,8 +19,8 @@
     "path": "./android.keystore",
     "alias": "android"
   },
-  "appVersionName": "8.9",
-  "appVersionCode": 89,
+  "appVersionName": "9.3",
+  "appVersionCode": 93,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://apexshade.pythonanywhere.com/static/manifest.json",

@@ -35,10 +35,25 @@
   </a>
 </section>
 
+{% if push_enabled %}
+<section class="card section-card">
+  <h2>Play reminders</h2>
+  <p class="section-desc">
+    Get a gentle notification on this device if a couple of days go by without playing —
+    handy for keeping a streak alive.
+  </p>
+  <button type="button" id="push-toggle" class="btn btn-ghost">🔔 Remind me to play</button>
+  <p class="section-desc" id="push-status"></p>
+</section>
+{% endif %}
+
 <p><a href="{{ url_for('home') }}" class="btn btn-primary">Back to Home</a></p>
 {% endblock %}
 
 {% block scripts %}
+{% if push_enabled %}
+<script src="{{ url_for('static', filename='js/push.js') }}?v={{ app_version }}" defer></script>
+{% endif %}
 <script>
 document.querySelectorAll(".bg-option").forEach(function (btn) {
   btn.addEventListener("click", function () {

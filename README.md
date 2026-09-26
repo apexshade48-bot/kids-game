@@ -18,6 +18,7 @@ Code: [github.com/apexshade48-bot/kids-game](https://github.com/apexshade48-bot/
 - **Top** — unlock for **10,000 coins**, 10 words, 7–8 letters (**+500** each)  
 - **Family** — unlock for **20,000 coins**, spoken English phrases (**+1,000** each). Hear & say. Admin can unlock free for mom/dad.  
 - **Streaks** — coins on day 1 / 3 / 7 (and every 7 days after)  
+- **Play reminders** (opt-in, `/settings`) — a push notification nudges a kid who hasn't played in 2–14 days to keep their streak alive; only sent to a device that explicitly turned it on
 - **Admin** — coins, unlock/lock modes, reset password, reset stars, roles  
 - **Leaderboard** per mode  
 - **Sounds** on correct / wrong / round complete
@@ -28,15 +29,37 @@ Code: [github.com/apexshade48-bot/kids-game](https://github.com/apexshade48-bot/
 
 ### Setting up the subscription flow
 
+**Manual transfer (no JazzCash merchant account needed)**
+
 1. Set `JAZZCASH_NUMBER` and/or `EASYPAISA_NUMBER` in `.env` to the account that receives payments.
-2. A parent sends 1,000 PKR, then reports the transaction ID on `/subscribe`.
-3. The request appears under **Pending payments** in `/admin` — check it against your own JazzCash/EasyPaisa account, then Approve (unlocks 30 days) or Reject.
+2. A parent is shown a 6-character **claim code** on `/subscribe` and puts it in the transfer remarks, so you can tell their payment apart from other same-amount transfers.
+3. They send 1,000 PKR and report the transaction ID on `/subscribe`.
+4. The request appears under **Pending payments** in `/admin`. Match the claim code and amount in your own JazzCash/EasyPaisa app, then type the last 4+ characters of the ID you matched plus the amount received, and Approve (unlocks 30 days) or Reject.
+
+The server enforces this: an ID already claimed by an earlier account, an expired claim (48h), a missing/short ID, or a recorded amount under 1,000 PKR will all be refused. Claims are rate limited to 4/account/day and 12/IP/day.
+
+**Automatic confirmation (needs a JazzCash merchant account)**
+
+Set `JAZZCASH_MERCHANT_ID`, `JAZZCASH_PASSWORD`, `JAZZCASH_INTEGRITY_SALT` and the two endpoint URLs, then register `https://yourdomain/webhooks/jazzcash` with JazzCash. Parents pay on JazzCash's own page and the subscription activates on a signed, amount-checked callback - no admin step, and no transaction ID for anyone to invent or copy.
+
+See **`JAZZCASH_SETUP.md`** for the full comparison, what each tier can and cannot protect you against, and the webhook setup. Verify the signature implementation against JazzCash's published test vector with `python tools/verify_jazzcash_hash.py`; run the attack suite with `python tools/test_payment_security.py`.
 4. To send weekly reports automatically, set `WEEKLY_REPORT_CRON_KEY` in `.env` to a random secret, then add a PythonAnywhere **Scheduled Task** (free accounts get one) that runs once a week:
    ```bash
    curl -X POST https://your-site.pythonanywhere.com/admin/api/send-weekly-reports \
      -H "X-Cron-Key: your-random-secret"
    ```
    Without `WEEKLY_REPORT_CRON_KEY` set, the endpoint only accepts an owner login session — you can still trigger it manually by visiting it while logged in as the owner.
+
+### Setting up play reminders
+
+1. Generate keys: `python tools/generate_vapid_keys.py`, paste the three printed lines into `.env`.
+2. A kid (or parent, on their device) taps **🔔 Remind me to play** on `/settings` and allows notifications.
+3. Trigger a send once a day. Since the one free PythonAnywhere Scheduled Task is already used for weekly reports above, hit the same-style endpoint from any external free cron (cron-job.org, a GitHub Actions schedule, UptimeRobot) using the **same** `WEEKLY_REPORT_CRON_KEY` secret:
+   ```bash
+   curl -X POST https://your-site.pythonanywhere.com/admin/api/push/send-reminders \
+     -H "X-Cron-Key: your-random-secret"
+   ```
+   Or click **Send reminders now** in `/admin` any time. Only kids who haven't played in 2–14 days get one; anyone quieter than 14 days is assumed to have moved on and is left alone.
 
 ## Run on your computer
 
