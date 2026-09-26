@@ -149,10 +149,12 @@ def _effective_subscribed(user_id: int) -> bool:
 
 
 def _post_auth_redirect(user_id: int):
-    """Where to send a player right after a successful login/signup/aura pick.
-    Already-subscribed accounts skip straight to Home — no point pitching a
-    paying customer. Everyone else sees the subscribe screen first, which has
-    its own big "Play for free" button, so this never actually blocks play."""
+    """Where to send a brand-new account right after signup (or the forced
+    first aura pick that follows it). Shown ONCE, not on every login — see
+    login() below, which goes straight to Home on a return visit. Already-
+    subscribed accounts skip straight to Home here too — no point pitching a
+    paying customer. Everyone else sees the subscribe screen, which has its
+    own big "Play for free" button, so this never actually blocks play."""
     if _effective_subscribed(user_id):
         return redirect(url_for("home"))
     return redirect(url_for("subscribe", welcome=1))
@@ -616,7 +618,11 @@ def login():
         session["aura"] = result.get("aura")
         if not result.get("aura"):
             return redirect(url_for("choose_aura"))
-        return _post_auth_redirect(result["id"])
+        # Straight to Home on an ordinary return visit. The subscribe pitch is
+        # for brand-new accounts only (see _post_auth_redirect) - showing it on
+        # every single login turned "come back and play" into "come back and
+        # get asked to pay first", which is exactly backwards for a kids' app.
+        return redirect(url_for("home"))
 
     return render_template("login.html", tab="login")
 
